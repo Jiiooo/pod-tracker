@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../providers/pod_provider.dart';
 import '../add_config_screen.dart';
 import '../../utils/ui_helpers.dart';
+import '../../utils/photo_storage.dart';
 
 class TrackerView extends StatefulWidget {
   const TrackerView({super.key});
@@ -68,11 +69,11 @@ class _TrackerViewState extends State<TrackerView> {
           const SizedBox(height: 32),
           Container(
             height: 200, width: 200,
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               color: Colors.white10, borderRadius: BorderRadius.circular(32),
-              image: config.imagePath != null ? DecorationImage(image: config.imagePath!.startsWith('http') ? NetworkImage(config.imagePath!) as ImageProvider : FileImage(File(config.imagePath!)), fit: BoxFit.cover) : null,
             ),
-            child: config.imagePath == null ? const Icon(Icons.vape_free, color: Colors.grey, size: 64) : null,
+            child: config.imagePath == null ? const Icon(Icons.vape_free, color: Colors.grey, size: 64) : StoragePhoto(value: config.imagePath!, fit: BoxFit.cover),
           ),
           const SizedBox(height: 32),
           Text(config.liquidName, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, fontFamily: 'Plus Jakarta Sans')),
@@ -240,7 +241,7 @@ class _TrackerViewState extends State<TrackerView> {
               children: [
                 GestureDetector(
                   onTap: () { if (config.imagePath != null) { HapticFeedback.lightImpact(); Navigator.push(context, MaterialPageRoute(builder: (_) => FullScreenImageView(heroTag: config.id, imagePath: config.imagePath!))); } },
-                  child: Hero(tag: config.id, child: Container(width: 85, height: 85, decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.withOpacity(0.1)), image: config.imagePath != null ? DecorationImage(image: config.imagePath!.startsWith('http') ? NetworkImage(config.imagePath!) as ImageProvider : FileImage(File(config.imagePath!)), fit: BoxFit.cover) : null), child: config.imagePath == null ? Icon(Icons.vape_free_rounded, color: Colors.grey.shade400, size: 32) : null)),
+                  child: Hero(tag: config.id, child: Container(width: 85, height: 85, clipBehavior: Clip.antiAlias, decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.withOpacity(0.1))), child: config.imagePath == null ? Icon(Icons.vape_free_rounded, color: Colors.grey.shade400, size: 32) : StoragePhoto(value: config.imagePath!, fit: BoxFit.cover))),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -292,6 +293,6 @@ class FullScreenImageView extends StatelessWidget {
   const FullScreenImageView({super.key, required this.heroTag, required this.imagePath});
   @override
   Widget build(BuildContext context) {
-    return Scaffold(backgroundColor: Colors.black.withOpacity(0.9), appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, iconTheme: const IconThemeData(color: Colors.white)), body: Center(child: Hero(tag: heroTag, child: InteractiveViewer(child: ClipRRect(borderRadius: BorderRadius.circular(16), child: imagePath.startsWith('http') ? Image.network(imagePath, fit: BoxFit.contain) : Image.file(File(imagePath), fit: BoxFit.contain))))));
+    return Scaffold(backgroundColor: Colors.black.withOpacity(0.9), appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, iconTheme: const IconThemeData(color: Colors.white)), body: Center(child: Hero(tag: heroTag, child: InteractiveViewer(child: ClipRRect(borderRadius: BorderRadius.circular(16), child: StoragePhoto(value: imagePath, fit: BoxFit.contain))))));
   }
 }

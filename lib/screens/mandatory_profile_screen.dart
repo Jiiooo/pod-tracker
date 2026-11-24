@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:pod_tracker/utils/photo_storage.dart';
 
 import '../../providers/profile_provider.dart';
 // Jika file ini di folder screens, sesuaikan import home_screen-nya
@@ -95,8 +96,7 @@ class _MandatoryProfileScreenState extends State<MandatoryProfileScreen> {
                             child: CircleAvatar(
                               radius: 55,
                               backgroundColor: Colors.grey.shade900,
-                              backgroundImage: profileProvider.avatarUrl != null ? NetworkImage(profileProvider.avatarUrl!) : null,
-                              child: profileProvider.avatarUrl == null ? Icon(Icons.person, size: 55, color: Colors.grey.shade700) : null,
+                              child: profileProvider.avatarUrl == null ? Icon(Icons.person, size: 55, color: Colors.grey.shade700) : ClipOval(child: StoragePhoto(value: profileProvider.avatarUrl!, fit: BoxFit.cover, width: 110, height: 110)),
                             ),
                           ),
                           Positioned(

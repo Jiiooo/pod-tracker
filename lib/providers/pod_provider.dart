@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/pod_config.dart';
+import '../utils/photo_storage.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -113,7 +114,33 @@ class PodProvider with ChangeNotifier {
     final fileName = 'liquid_${DateTime.now().millisecondsSinceEpoch}.$ext';
     final filePath = '$_currentUserId/$fileName';
     await _supabase.storage.from('pod_images').upload(filePath, file);
-    return _supabase.storage.from('pod_images').getPublicUrl(filePath);
+    return filePath;
+  }
+
+  /// Hapus objek foto lama. Gagal hanya dicatat, tidak boleh memblokir sync.
+  Future<void> _removeStoredPhoto(String? value) async {
+    final path = storagePathFromValue(value);
+    if (path == null) return;
+    try {
+      await _supabase.storage.from('pod_images').remove([path]);
+    } catch (e) {
+      debugPrint('Gagal hapus foto lama ($path): $e');
+    }
+  }
+
+  Future<String?> _remoteImageValue(String id, String uid) async {
+    try {
+      final row = await _supabase
+          .from('pod_configs')
+          .select('image_path')
+          .eq('id', id)
+          .eq('user_id', uid)
+          .maybeSingle();
+      return row?['image_path'] as String?;
+    } catch (e) {
+      debugPrint('Gagal baca foto lama ($id): $e');
+      return null;
+    }
   }
 
   Future<void> pushPending() async {
@@ -132,18 +159,25 @@ class PodProvider with ChangeNotifier {
         final c = snap;
         try {
           if (c.isDeleted) {
+            final oldImage = await _remoteImageValue(c.id, uid);
             await _supabase.from('pod_configs').delete().eq('id', c.id).eq('user_id', uid);
             await _box.delete(c.id);
+            await _removeStoredPhoto(oldImage ?? (isLocalFile(c.imagePath) ? null : c.imagePath));
             continue;
           }
 
           var imagePath = c.imagePath;
-          if (imagePath != null && imagePath.isNotEmpty && !imagePath.startsWith('http')) {
-            imagePath = await _uploadLiquidImage(imagePath);
+          String? oldImage;
+          if (isLocalFile(imagePath)) {
+            oldImage = await _remoteImageValue(c.id, uid);
+            imagePath = await _uploadLiquidImage(imagePath!);
           }
 
           final toPush = _copyPending(snap)..imagePath = imagePath;
           await _supabase.from('pod_configs').upsert(podConfigToRow(toPush));
+          if (oldImage != null && oldImage != imagePath) {
+            await _removeStoredPhoto(oldImage);
+          }
 
           // Hanya tandai synced jika record tidak diubah lagi selama proses upload.
           final current = _box.get(c.id);

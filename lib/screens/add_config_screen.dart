@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:pod_tracker/utils/photo_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/pod_config.dart';
 import '../providers/pod_provider.dart';
@@ -82,7 +82,7 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
 
   Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: source, imageQuality: 70);
+    final pickedFile = await picker.pickImage(source: source, imageQuality: 70, maxWidth: 1280, maxHeight: 1280);
 
     if (pickedFile != null) {
       setState(() {
@@ -250,9 +250,7 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
                   clipBehavior: Clip.hardEdge,
                   child: _currentImagePath != null
                   // CEK APAKAH FOTO DARI INTERNET ATAU MEMORI HP
-                      ? (_currentImagePath!.startsWith('http')
-                      ? Image.network(_currentImagePath!, fit: BoxFit.cover)
-                      : Image.file(File(_currentImagePath!), fit: BoxFit.cover))
+                      ? StoragePhoto(value: _currentImagePath!, fit: BoxFit.cover)
                       : Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
