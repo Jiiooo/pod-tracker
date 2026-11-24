@@ -123,6 +123,23 @@ class _TrackerViewState extends State<TrackerView> {
           children: [
             _buildPremiumSearchAndFilter(context, provider, isDark),
 
+            if (provider.syncError != null || provider.pendingCount > 0)
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(color: Colors.orange.withOpacity(0.12), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.withOpacity(0.5))),
+                child: Row(
+                  children: [
+                    const Icon(Icons.cloud_off_rounded, color: Colors.orange, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(
+                      provider.syncError ?? '${provider.pendingCount} perubahan belum tersinkron',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange))),
+                    TextButton(onPressed: provider.isLoading ? null : () => provider.syncData(), child: const Text('Coba lagi')),
+                  ],
+                ),
+              ),
+
             // BANNER PERINGATAN (Hanya muncul jika ada alat yang ketuaan)
             if (warningConfigs.isNotEmpty)
               Container(

@@ -46,6 +46,14 @@ class PodConfig extends HiveObject {
   @HiveField(13)
   String userId;
 
+  /// 'synced' | 'pending'
+  @HiveField(14)
+  String syncStatus;
+
+  /// Tombstone: true = dihapus secara lokal, menunggu dihapus di cloud.
+  @HiveField(15)
+  bool isDeleted;
+
   PodConfig({
     required this.id,
     required this.userId,
@@ -60,5 +68,46 @@ class PodConfig extends HiveObject {
     this.price = 0.0,
     this.imagePath,
     this.flavorTags = const [],
+    this.syncStatus = 'synced',
+    this.isDeleted = false,
   });
 }
+
+/// Parser baris Supabase -> PodConfig (null-safe, tidak melempar untuk field kosong).
+PodConfig podConfigFromRow(Map<String, dynamic> row) {
+  return PodConfig(
+    id: (row['id'] ?? '').toString(),
+    userId: (row['user_id'] ?? '').toString(),
+    deviceName: (row['device_name'] as String?) ?? 'Lainnya',
+    resistance: (row['resistance'] as num?)?.toDouble() ?? 0,
+    liquidName: (row['liquid_name'] as String?) ?? '',
+    optimalWattage: (row['optimal_wattage'] as num?)?.toInt() ?? 0,
+    airflowLevel: (row['airflow_level'] as String?) ?? '',
+    flavorRating: (row['flavor_rating'] as num?)?.toDouble() ?? 0,
+    dateStarted:
+        DateTime.tryParse((row['date_started'] ?? '').toString()) ?? DateTime.now(),
+    isStillActive: (row['is_still_active'] as bool?) ?? true,
+    price: (row['price'] as num?)?.toDouble() ?? 0,
+    imagePath: row['image_path'] as String?,
+    flavorTags:
+        (row['flavor_tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
+    syncStatus: 'synced',
+  );
+}
+
+/// PodConfig -> baris Supabase.
+Map<String, dynamic> podConfigToRow(PodConfig c) => {
+      'id': c.id,
+      'user_id': c.userId,
+      'device_name': c.deviceName,
+      'resistance': c.resistance,
+      'liquid_name': c.liquidName,
+      'optimal_wattage': c.optimalWattage,
+      'airflow_level': c.airflowLevel,
+      'flavor_rating': c.flavorRating,
+      'date_started': c.dateStarted.toIso8601String(),
+      'is_still_active': c.isStillActive,
+      'price': c.price,
+      'image_path': c.imagePath,
+      'flavor_tags': c.flavorTags,
+    };

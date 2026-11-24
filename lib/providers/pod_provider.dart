@@ -26,148 +26,198 @@ class PodProvider with ChangeNotifier {
     syncData(); // Panggil fungsi publik
   }
 
+  String? _syncError;
+  String? get syncError => _syncError;
+
+  int get pendingCount {
+    final uid = _currentUserId;
+    if (uid == null) return 0;
+    return _box.values.where((c) => c.userId == uid && c.syncStatus == 'pending').length;
+  }
+
+  bool _pushing = false;
+  bool _syncing = false;
+
+  /// Logout: hanya kosongkan memori, data lokal (Hive) tetap aman.
   void clearData() {
     _configs = [];
-    _box.clear();
     notifyListeners();
   }
 
-  // --- 1. SINKRONISASI OTOMATIS DENGAN ANIMASI LOADING ---
+  // --- 1. SINKRONISASI OFFLINE-FIRST ---
   Future<void> syncData() async {
-    // NYALAKAN LOADING
+    if (_syncing) return;
+    _syncing = true;
     _isLoading = true;
     notifyListeners();
 
     try {
       final userId = _currentUserId;
       if (userId == null) {
-        clearData();
+        _configs = [];
         return;
       }
 
-      final List<dynamic> data = await _supabase.from('pod_configs').select().eq('user_id', userId);
-      await _box.clear();
+      _loadLocalData();
+      await pushPending();
 
-      for (var item in data) {
-        final config = PodConfig(
-          id: item['id'],
-          userId: item['user_id'],
-          deviceName: item['device_name'] ?? 'Lainnya',
-          resistance: (item['resistance'] as num).toDouble(),
-          liquidName: item['liquid_name'],
-          optimalWattage: item['optimal_wattage'] as int,
-          airflowLevel: item['airflow_level'],
-          flavorRating: (item['flavor_rating'] as num).toDouble(),
-          dateStarted: DateTime.parse(item['date_started']),
-          isStillActive: item['is_still_active'] ?? true,
-          price: (item['price'] as num).toDouble(),
-          imagePath: item['image_path'],
-          flavorTags: List<String>.from(item['flavor_tags'] ?? []),
-        );
-        await _box.put(config.id, config);
+      final List<dynamic> data =
+          await _supabase.from('pod_configs').select().eq('user_id', userId);
+
+      final remoteIds = <String>{};
+      for (final item in data) {
+        try {
+          final remote = podConfigFromRow(Map<String, dynamic>.from(item as Map));
+          if (remote.id.isEmpty) continue;
+          remoteIds.add(remote.id);
+          final local = _box.get(remote.id);
+          if (local != null && local.syncStatus == 'pending') continue;
+          await _box.put(remote.id, remote);
+        } catch (e) {
+          debugPrint('Sync: baris rusak dilewati: $e');
+        }
       }
+
+      final stale = _box.values
+          .where((c) => c.userId == userId && c.syncStatus == 'synced' && !remoteIds.contains(c.id))
+          .map((c) => c.id)
+          .toList();
+      for (final id in stale) {
+        await _box.delete(id);
+      }
+
+      if (pendingCount == 0) _syncError = null;
     } catch (e) {
       debugPrint('Sync Error: $e');
+      _syncError = 'Gagal sinkronisasi. Data tersimpan di perangkat.';
     } finally {
       _loadLocalData();
-
-      // MATIKAN LOADING
+      _syncing = false;
       _isLoading = false;
       notifyListeners();
     }
   }
 
   void _loadLocalData() {
-    _configs = _currentUserId != null
-        ? _box.values.where((c) => c.userId == _currentUserId).toList()
+    final uid = _currentUserId;
+    _configs = uid != null
+        ? _box.values.where((c) => c.userId == uid && !c.isDeleted).toList()
         : [];
     notifyListeners();
   }
 
-  // --- 2. MANAJEMEN DATA & CLOUD STORAGE ---
-  Future<String?> _uploadLiquidImage(String? localImagePath) async {
-    if (localImagePath == null || localImagePath.startsWith('http')) return localImagePath;
+  // --- 2. ANTREAN PUSH ---
+  Future<String?> _uploadLiquidImage(String localImagePath) async {
+    final file = File(localImagePath);
+    final ext = localImagePath.contains('.') ? localImagePath.split('.').last : 'jpg';
+    final fileName = 'liquid_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final filePath = '$_currentUserId/$fileName';
+    await _supabase.storage.from('pod_images').upload(filePath, file);
+    return _supabase.storage.from('pod_images').getPublicUrl(filePath);
+  }
 
+  Future<void> pushPending() async {
+    if (_pushing) return;
+    final uid = _currentUserId;
+    if (uid == null) return;
+    _pushing = true;
     try {
-      final file = File(localImagePath);
-      final fileName = 'liquid_${DateTime.now().millisecondsSinceEpoch}.${localImagePath.split('.').last}';
-      final filePath = '$_currentUserId/$fileName';
+      final pending = _box.values
+          .where((c) => c.userId == uid && c.syncStatus == 'pending')
+          .toList();
+      var failed = false;
 
-      await _supabase.storage.from('pod_images').upload(filePath, file);
-      return _supabase.storage.from('pod_images').getPublicUrl(filePath);
-    } catch (e) {
-      debugPrint('Upload Foto Error: $e');
-      return localImagePath;
+      for (final live in pending) {
+        final snap = _copyPending(live, deleted: live.isDeleted);
+        final c = snap;
+        try {
+          if (c.isDeleted) {
+            await _supabase.from('pod_configs').delete().eq('id', c.id).eq('user_id', uid);
+            await _box.delete(c.id);
+            continue;
+          }
+
+          var imagePath = c.imagePath;
+          if (imagePath != null && imagePath.isNotEmpty && !imagePath.startsWith('http')) {
+            imagePath = await _uploadLiquidImage(imagePath);
+          }
+
+          final toPush = _copyPending(snap)..imagePath = imagePath;
+          await _supabase.from('pod_configs').upsert(podConfigToRow(toPush));
+
+          // Hanya tandai synced jika record tidak diubah lagi selama proses upload.
+          final current = _box.get(c.id);
+          if (current != null && !current.isDeleted && current.syncStatus == 'pending' &&
+              _sameContent(current, snap)) {
+            toPush.syncStatus = 'synced';
+            await _box.put(c.id, toPush);
+          } else if (current != null && imagePath != current.imagePath &&
+              current.imagePath == snap.imagePath) {
+            current.imagePath = imagePath;
+            await _box.put(c.id, current);
+          }
+        } catch (e) {
+          failed = true;
+          debugPrint('Push Error (${c.id}): $e');
+        }
+      }
+
+      if (failed) {
+        _syncError = 'Sebagian data belum terkirim ke cloud. Coba lagi nanti.';
+      } else {
+        _syncError = null;
+      }
+    } finally {
+      _pushing = false;
+      _loadLocalData();
     }
+  }
+
+  bool _sameContent(PodConfig a, PodConfig b) =>
+      a.deviceName == b.deviceName && a.resistance == b.resistance &&
+      a.liquidName == b.liquidName && a.optimalWattage == b.optimalWattage &&
+      a.airflowLevel == b.airflowLevel && a.flavorRating == b.flavorRating &&
+      a.dateStarted == b.dateStarted && a.isStillActive == b.isStillActive &&
+      a.price == b.price && a.imagePath == b.imagePath &&
+      a.flavorTags.join('\u0000') == b.flavorTags.join('\u0000');
+
+  PodConfig _copyPending(PodConfig c, {bool deleted = false}) => PodConfig(
+        id: c.id, userId: c.userId, deviceName: c.deviceName,
+        resistance: c.resistance, liquidName: c.liquidName,
+        optimalWattage: c.optimalWattage, airflowLevel: c.airflowLevel,
+        flavorRating: c.flavorRating, dateStarted: c.dateStarted,
+        isStillActive: c.isStillActive, price: c.price,
+        imagePath: c.imagePath, flavorTags: List<String>.from(c.flavorTags),
+        syncStatus: 'pending', isDeleted: deleted,
+      );
+
+  Future<void> _push() async {
+    try {
+      await pushPending();
+    } catch (e) {
+      debugPrint('Push Error: $e');
+    }
+    notifyListeners();
   }
 
   Future<void> addConfig(PodConfig config) async {
-    try {
-      final cloudImagePath = await _uploadLiquidImage(config.imagePath);
-      final newConfig = PodConfig(
-        id: config.id, userId: config.userId, deviceName: config.deviceName,
-        resistance: config.resistance, liquidName: config.liquidName,
-        optimalWattage: config.optimalWattage, airflowLevel: config.airflowLevel,
-        flavorRating: config.flavorRating, dateStarted: config.dateStarted,
-        isStillActive: config.isStillActive, price: config.price,
-        imagePath: cloudImagePath, flavorTags: config.flavorTags,
-      );
-
-      await _supabase.from('pod_configs').insert({
-        'id': newConfig.id, 'user_id': newConfig.userId, 'device_name': newConfig.deviceName,
-        'resistance': newConfig.resistance, 'liquid_name': newConfig.liquidName,
-        'optimal_wattage': newConfig.optimalWattage, 'airflow_level': newConfig.airflowLevel,
-        'flavor_rating': newConfig.flavorRating, 'date_started': newConfig.dateStarted.toIso8601String(),
-        'is_still_active': newConfig.isStillActive, 'price': newConfig.price,
-        'image_path': newConfig.imagePath, 'flavor_tags': newConfig.flavorTags,
-      });
-
-      await _box.put(newConfig.id, newConfig);
-      _loadLocalData();
-    } catch (e) {
-      debugPrint('Add Error: $e');
-      rethrow;
-    }
+    await _box.put(config.id, _copyPending(config));
+    _loadLocalData();
+    await _push();
   }
 
   Future<void> updateConfig(PodConfig newConfig) async {
-    try {
-      final cloudImagePath = await _uploadLiquidImage(newConfig.imagePath);
-
-      await _supabase.from('pod_configs').update({
-        'device_name': newConfig.deviceName, 'resistance': newConfig.resistance,
-        'liquid_name': newConfig.liquidName, 'optimal_wattage': newConfig.optimalWattage,
-        'airflow_level': newConfig.airflowLevel, 'flavor_rating': newConfig.flavorRating,
-        'date_started': newConfig.dateStarted.toIso8601String(), 'is_still_active': newConfig.isStillActive,
-        'price': newConfig.price, 'image_path': cloudImagePath, 'flavor_tags': newConfig.flavorTags,
-      }).eq('id', newConfig.id).eq('user_id', _currentUserId!);
-
-      final updatedConfig = PodConfig(
-        id: newConfig.id, userId: newConfig.userId, deviceName: newConfig.deviceName,
-        resistance: newConfig.resistance, liquidName: newConfig.liquidName,
-        optimalWattage: newConfig.optimalWattage, airflowLevel: newConfig.airflowLevel,
-        flavorRating: newConfig.flavorRating, dateStarted: newConfig.dateStarted,
-        isStillActive: newConfig.isStillActive, price: newConfig.price,
-        imagePath: cloudImagePath, flavorTags: newConfig.flavorTags,
-      );
-
-      await _box.put(updatedConfig.id, updatedConfig);
-      _loadLocalData();
-    } catch(e) {
-      debugPrint('Update Error: $e');
-      rethrow;
-    }
+    await _box.put(newConfig.id, _copyPending(newConfig));
+    _loadLocalData();
+    await _push();
   }
 
   Future<void> deleteConfig(String id) async {
-    try {
-      await _supabase.from('pod_configs').delete().eq('id', id);
-      await _box.delete(id);
-      _loadLocalData();
-    } catch (e) {
-      debugPrint('Delete Error: $e');
-      rethrow;
-    }
+    final existing = _box.get(id);
+    if (existing == null) return;
+    await _box.put(id, _copyPending(existing, deleted: true));
+    _loadLocalData();
+    await _push();
   }
 
   // --- 3. FILTER, SORTING & STATISTIK UI ---
@@ -175,7 +225,7 @@ class PodProvider with ChangeNotifier {
   void setSortBy(String sort) { _sortBy = sort; notifyListeners(); }
 
   List<PodConfig> get activeConfigs {
-    var filtered = _configs.where((c) => c.isStillActive).toList();
+    var filtered = _configs.where((c) => c.isStillActive && !c.isDeleted).toList();
     if (_searchQuery.isNotEmpty) {
       filtered = filtered.where((c) =>
       c.deviceName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -188,24 +238,30 @@ class PodProvider with ChangeNotifier {
     return filtered;
   }
 
-  List<PodConfig> get archivedConfigs => _configs.where((c) => !c.isStillActive).toList();
-  double get totalExpense => _configs.fold(0.0, (sum, item) => sum + item.price);
+  List<PodConfig> get archivedConfigs => _configs.where((c) => !c.isStillActive && !c.isDeleted).toList();
+  double get totalExpense => _configs.where((c) => !c.isDeleted).fold(0.0, (sum, item) => sum + item.price);
 
   // --- 4. ARSIP & EXPORT CSV ---
   Future<void> archiveConfig(String id) async {
     final existing = _box.get(id);
-    if (existing != null) { existing.isStillActive = false; await updateConfig(existing); }
+    if (existing != null && !existing.isDeleted) {
+      final copy = _copyPending(existing)..isStillActive = false;
+      await updateConfig(copy);
+    }
   }
 
   Future<void> restoreConfig(String id) async {
     final existing = _box.get(id);
-    if (existing != null) { existing.isStillActive = true; await updateConfig(existing); }
+    if (existing != null && !existing.isDeleted) {
+      final copy = _copyPending(existing)..isStillActive = true;
+      await updateConfig(copy);
+    }
   }
 
   Future<void> exportToCSV() async {
     try {
       String csvData = "Device,Liquid,Resistance(Ohm),Watt,Rating,Harga,Tanggal\n";
-      for (var c in _configs) {
+      for (var c in _configs.where((c) => !c.isDeleted)) {
         csvData += "${c.deviceName},${c.liquidName},${c.resistance},${c.optimalWattage},${c.flavorRating},${c.price},${c.dateStarted.toIso8601String().split('T')[0]}\n";
       }
       final directory = await getTemporaryDirectory();
