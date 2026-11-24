@@ -30,13 +30,15 @@ class PodConfigAdapter extends TypeAdapter<PodConfig> {
       price: fields[10] as double,
       imagePath: fields[11] as String?,
       flavorTags: (fields[12] as List).cast<String>(),
+      syncStatus: fields[14] as String? ?? 'synced',
+      isDeleted: fields[15] as bool? ?? false,
     );
   }
 
   @override
   void write(BinaryWriter writer, PodConfig obj) {
     writer
-      ..writeByte(13)
+      ..writeByte(15)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -62,7 +64,11 @@ class PodConfigAdapter extends TypeAdapter<PodConfig> {
       ..writeByte(12)
       ..write(obj.flavorTags)
       ..writeByte(13)
-      ..write(obj.userId);
+      ..write(obj.userId)
+      ..writeByte(14)
+      ..write(obj.syncStatus)
+      ..writeByte(15)
+      ..write(obj.isDeleted);
   }
 
   @override
