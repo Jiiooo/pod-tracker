@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../theme/app_tokens.dart';
 
 const String photoBucket = 'pod_images';
 const int _signedUrlTtlSeconds = 3600;
@@ -116,41 +119,58 @@ class _StoragePhotoState extends State<StoragePhoto> {
     _future = path == null ? null : SignedUrlResolver.instance.resolve(path);
   }
 
-  Widget get _error => widget.errorWidget ??
-      const Center(child: Icon(Icons.broken_image_outlined, color: Colors.grey));
+  Widget get _error =>
+      widget.errorWidget ??
+      Center(
+          child: Icon(Icons.broken_image_outlined,
+              color: Theme.of(context).extension<AppTokens>()?.textSecondary));
 
-  Widget get _loading => widget.placeholder ??
-      const Center(
-          child: SizedBox(
-              width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)));
+  Widget get _loading =>
+      widget.placeholder ??
+      ColoredBox(
+          color: Theme.of(context).extension<AppTokens>()?.surfaceRaised ??
+              Colors.transparent,
+          child: const SizedBox.expand());
 
   @override
   Widget build(BuildContext context) {
     final v = widget.value;
-    if (isLocalFile(v)) {
-      final path = v.startsWith('file://') ? Uri.parse(v).toFilePath() : v;
-      return Image.file(File(path),
-          fit: widget.fit,
-          width: widget.width,
-          height: widget.height,
-          errorBuilder: (_, _, _) => _error);
-    }
-    final future = _future;
-    if (future == null) return _error;
-    return FutureBuilder<String>(
-      future: future,
-      builder: (context, snap) {
-        if (snap.hasError) return _error;
-        if (!snap.hasData) return _loading;
-        return Image(
-          image: NetworkImage(snap.data!),
-          fit: widget.fit,
-          width: widget.width,
-          height: widget.height,
-          loadingBuilder: (_, child, progress) => progress == null ? child : _loading,
-          errorBuilder: (_, _, _) => _error,
-        );
-      },
-    );
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return LayoutBuilder(builder: (context, constraints) {
+      final w = widget.width ??
+          (constraints.hasBoundedWidth ? constraints.maxWidth : null);
+      final cacheW = w == null || !w.isFinite ? null : (w * dpr).round();
+      if (isLocalFile(v)) {
+        final path = v.startsWith('file://') ? Uri.parse(v).toFilePath() : v;
+        return Image.file(File(path),
+            fit: widget.fit,
+            width: widget.width,
+            height: widget.height,
+            cacheWidth: cacheW,
+            errorBuilder: (_, _, _) => _error);
+      }
+      final future = _future;
+      final key = storagePathFromValue(v);
+      if (future == null || key == null) return _error;
+      return FutureBuilder<String>(
+        future: future,
+        builder: (context, snap) {
+          if (snap.hasError) return _error;
+          if (!snap.hasData) return _loading;
+          return CachedNetworkImage(
+            imageUrl: snap.data!,
+            cacheKey: key,
+            fit: widget.fit,
+            width: widget.width,
+            height: widget.height,
+            memCacheWidth: cacheW,
+            fadeInDuration: const Duration(milliseconds: 150),
+            fadeOutDuration: Duration.zero,
+            placeholder: (_, _) => _loading,
+            errorWidget: (_, _, _) => _error,
+          );
+        },
+      );
+    });
   }
 }

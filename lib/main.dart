@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'theme/app_theme.dart';
 
 import 'models/pod_config.dart';
 
@@ -15,21 +15,28 @@ import 'providers/auth_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/splash_screen.dart';
-import 'screens/mandatory_profile_screen.dart'; // 👇 Sudah ditambahkan titik koma (;)
+import 'screens/mandatory_profile_screen.dart';
+
+Future<void> _initLocal() async {
+  await Hive.initFlutter();
+  Hive.registerAdapter(PodConfigAdapter());
+  await Future.wait([
+    Hive.openBox<PodConfig>('podBox'),
+    Hive.openBox(ThemeProvider.boxName),
+  ]);
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Inisialisasi Database Lokal (Hive)
-  await Hive.initFlutter();
-  Hive.registerAdapter(PodConfigAdapter());
-  await Hive.openBox<PodConfig>('podBox');
-
-  // 2. Inisialisasi Database Cloud (Supabase)
-  await Supabase.initialize(
-    url: 'https://ljwvsgcvmbndidedrqwt.supabase.co',
-    publishableKey: 'sb_publishable_J2_mN79g9W5-AYRDyR98QQ_QWypXhOq',
-  );
+  // Hive (lokal) dan Supabase diinisialisasi bersamaan.
+  await Future.wait([
+    _initLocal(),
+    Supabase.initialize(
+      url: 'https://ljwvsgcvmbndidedrqwt.supabase.co',
+      publishableKey: 'sb_publishable_J2_mN79g9W5-AYRDyR98QQ_QWypXhOq',
+    ),
+  ]);
 
   runApp(
     MultiProvider(
@@ -53,27 +60,14 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, child) {
-
-        final brightness = themeProvider.isDarkMode ? Brightness.dark : Brightness.light;
-
-        return MaterialApp(
-          title: 'Pod Tracker',
-          debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.blueGrey,
-              brightness: brightness,
-            ),
-            textTheme: GoogleFonts.plusJakartaSansTextTheme(
-              ThemeData(brightness: brightness).textTheme,
-            ),
-          ),
-          home: const SplashScreen(),
-        );
-      },
+    final mode = context.select<ThemeProvider, ThemeMode>((t) => t.themeMode);
+    return MaterialApp(
+      title: 'Pod Tracker',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: mode,
+      home: const SplashScreen(),
     );
   }
 }
@@ -91,10 +85,7 @@ class AuthWrapper extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           // Tampilkan loading screen saat sedang memeriksa session
-          return const Scaffold(
-            backgroundColor: Color(0xFF0a0a0a),
-            body: Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF))),
-          );
+          return const _LoadingScaffold();
         }
 
         // Jika ada sesi login yang aktif
@@ -106,10 +97,7 @@ class AuthWrapper extends StatelessWidget {
 
               // 1. Tunggu provider mengambil data profil dari Supabase
               if (profile.isLoading) {
-                return const Scaffold(
-                  backgroundColor: Color(0xFF0a0a0a),
-                  body: Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF))),
-                );
+                return const _LoadingScaffold();
               }
 
               // 2. CEGAT! Jika nama kosong, paksa arahkan ke halaman form profil
@@ -128,4 +116,12 @@ class AuthWrapper extends StatelessWidget {
       },
     );
   }
+}
+
+class _LoadingScaffold extends StatelessWidget {
+  const _LoadingScaffold();
+
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: CircularProgressIndicator()));
 }

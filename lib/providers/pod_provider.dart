@@ -291,6 +291,7 @@ class PodProvider with ChangeNotifier {
 
   // --- 3. FILTER, SORTING & STATISTIK UI ---
   void setSearchQuery(String query) { _searchQuery = query; _dirty = true; notifyListeners(); }
+  String get sortBy => _sortBy;
   void setSortBy(String sort) { _sortBy = sort; _dirty = true; notifyListeners(); }
 
   Set<String> get selectedTags => Set.unmodifiable(_selectedTags);
@@ -362,6 +363,8 @@ class PodProvider with ChangeNotifier {
       active.sort((a, b) => b.dateStarted.compareTo(a.dateStarted));
     } else if (_sortBy == 'rating') {
       active.sort((a, b) => b.flavorRating.compareTo(a.flavorRating));
+    } else if (_sortBy == 'price') {
+      active.sort((a, b) => a.price.compareTo(b.price));
     }
     _activeCache = active;
     _archivedCache = live.where((c) => !c.isStillActive && tagOk(c)).toList();
