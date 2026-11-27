@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/pod_config.dart';
@@ -24,6 +25,17 @@ class AddConfigScreen extends StatefulWidget {
 
 class _AddConfigScreenState extends State<AddConfigScreen> {
   final _formKey = GlobalKey<FormState>();
+  AutovalidateMode _autovalidate = AutovalidateMode.disabled;
+
+  // Kunci + fokus field wajib, urut sesuai posisi di layar.
+  final _customDeviceKey = GlobalKey<FormFieldState<String>>();
+  final _liquidKey = GlobalKey<FormFieldState<String>>();
+  final _resistanceKey = GlobalKey<FormFieldState<String>>();
+  final _wattageKey = GlobalKey<FormFieldState<String>>();
+  final _customDeviceFocus = FocusNode();
+  final _liquidFocus = FocusNode();
+  final _resistanceFocus = FocusNode();
+  final _wattageFocus = FocusNode();
 
   late TextEditingController _liquidController;
   late TextEditingController _resistanceController;
@@ -112,8 +124,32 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
   }
 
 
+  void _scrollToFirstError() {
+    final fields = [
+      (_customDeviceKey, _customDeviceFocus),
+      (_liquidKey, _liquidFocus),
+      (_resistanceKey, _resistanceFocus),
+      (_wattageKey, _wattageFocus),
+    ];
+    for (final (key, focus) in fields) {
+      final ctx = key.currentContext;
+      if (key.currentState?.hasError == true && ctx != null) {
+        HapticFeedback.lightImpact();
+        Scrollable.ensureVisible(ctx,
+            duration: Motion.normal, curve: Motion.curve, alignment: 0.2);
+        focus.requestFocus();
+        return;
+      }
+    }
+  }
+
   void _saveData() async {
-    if (_formKey.currentState!.validate()) {
+    if (!_formKey.currentState!.validate()) {
+      setState(() => _autovalidate = AutovalidateMode.onUserInteraction);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToFirstError());
+      return;
+    }
+    {
       final finalDeviceName = _selectedDevice == 'Lainnya'
           ? _customDeviceController.text
           : _selectedDevice;
@@ -181,6 +217,10 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
     _wattageController.dispose();
     _priceController.dispose();
     _customDeviceController.dispose();
+    _customDeviceFocus.dispose();
+    _liquidFocus.dispose();
+    _resistanceFocus.dispose();
+    _wattageFocus.dispose();
     super.dispose();
   }
 
@@ -194,6 +234,7 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
       ),
       body: Form(
         key: _formKey,
+        autovalidateMode: _autovalidate,
         child: MaxWidth(
           width: 640,
           child: ListView(
@@ -208,6 +249,8 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
                   selectedDevice: _selectedDevice,
                   options: _deviceOptions,
                   customController: _customDeviceController,
+                  customFieldKey: _customDeviceKey,
+                  customFocusNode: _customDeviceFocus,
                   onChanged: (value) => setState(() {
                     _selectedDevice = value;
                     if (_selectedDevice != 'Lainnya') {
@@ -221,6 +264,8 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
               const SizedBox(height: Sp.xl),
               FormSection(label: 'Liquid', children: [
                 TextFormField(
+                  key: _liquidKey,
+                  focusNode: _liquidFocus,
                   controller: _liquidController,
                   decoration: const InputDecoration(labelText: 'Nama liquid'),
                   validator: (value) => value!.isEmpty ? 'Wajib diisi' : null,
@@ -254,6 +299,10 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
                 ResistanceWattageRow(
                   resistanceController: _resistanceController,
                   wattageController: _wattageController,
+                  resistanceKey: _resistanceKey,
+                  wattageKey: _wattageKey,
+                  resistanceFocus: _resistanceFocus,
+                  wattageFocus: _wattageFocus,
                 ),
                 const SizedBox(height: Sp.m),
                 AirflowAndRatingSection(
