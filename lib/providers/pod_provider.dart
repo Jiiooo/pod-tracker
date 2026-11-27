@@ -185,13 +185,22 @@ class PodProvider with ChangeNotifier {
 
           var imagePath = c.imagePath;
           String? oldImage;
+          String? uploaded; // objek yang baru diupload di putaran ini
           if (isLocalFile(imagePath)) {
             oldImage = await _remoteImageValue(c.id, uid);
             imagePath = await _uploadLiquidImage(imagePath!);
+            uploaded = imagePath;
           }
 
           final toPush = _copyPending(snap)..imagePath = imagePath;
-          await _supabase.from('pod_configs').upsert(podConfigToRow(toPush));
+          try {
+            await _supabase.from('pod_configs').upsert(podConfigToRow(toPush));
+          } catch (_) {
+            // Upload berhasil tapi upsert gagal: hapus objek yatim agar retry
+            // tidak menumpuk file. Record tetap pending dengan path lokal.
+            if (uploaded != null) await _removeStoredPhoto(uploaded, exceptId: c.id);
+            rethrow;
+          }
           if (oldImage != null && oldImage != imagePath) {
             await _removeStoredPhoto(oldImage, exceptId: c.id);
           }
