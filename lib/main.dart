@@ -28,7 +28,7 @@ void main() async {
   // 2. Inisialisasi Database Cloud (Supabase)
   await Supabase.initialize(
     url: 'https://ljwvsgcvmbndidedrqwt.supabase.co',
-    anonKey: 'sb_publishable_J2_mN79g9W5-AYRDyR98QQ_QWypXhOq',
+    publishableKey: 'sb_publishable_J2_mN79g9W5-AYRDyR98QQ_QWypXhOq',
   );
 
   runApp(

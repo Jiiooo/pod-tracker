@@ -40,13 +40,14 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     // 2. WAKTU TUNGGU DIPERLAMBAT (Menjadi 2500ms / 2.5 detik) agar teks sempat terbaca
     Future.delayed(const Duration(milliseconds: 2500), () {
+      if (!mounted) return;
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 800), // Durasi memudar ke Home
-          pageBuilder: (_, __, ___) => const AuthWrapper(),
-          transitionsBuilder: (_, animation, __, child) {
+          pageBuilder: (_, _, _) => const AuthWrapper(),
+          transitionsBuilder: (_, animation, _, child) {
             return FadeTransition(opacity: animation, child: child);
           },
         ),
@@ -99,7 +100,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF00E5FF).withOpacity(0.15),
+                      color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
                       blurRadius: 40,
                       spreadRadius: 10,
                     ),
@@ -134,7 +135,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     style: GoogleFonts.sourceCodePro(
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
-                      color: const Color(0xFF00E5FF).withOpacity(0.8),
+                      color: const Color(0xFF00E5FF).withValues(alpha: 0.8),
                       letterSpacing: 2.0,
                     ),
                   ),

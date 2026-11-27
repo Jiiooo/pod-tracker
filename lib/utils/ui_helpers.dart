@@ -18,7 +18,7 @@ void showActionAnimation(BuildContext context, String message, IconData icon, Co
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 64)),
+                Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 64)),
                 const SizedBox(height: 20),
                 Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
               ],
@@ -29,5 +29,8 @@ void showActionAnimation(BuildContext context, String message, IconData icon, Co
     },
     transitionDuration: const Duration(milliseconds: 500),
   );
-  Future.delayed(const Duration(milliseconds: 1200), () => Navigator.of(context, rootNavigator: true).pop());
+  final navigator = Navigator.of(context, rootNavigator: true);
+  Future.delayed(const Duration(milliseconds: 1200), () {
+    if (navigator.mounted) navigator.pop();
+  });
 }

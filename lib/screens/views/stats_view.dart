@@ -25,7 +25,7 @@ class _StatsViewState extends State<StatsView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.auto_graph_rounded, size: 80, color: primaryColor.withOpacity(0.3)),
+                  Icon(Icons.auto_graph_rounded, size: 80, color: primaryColor.withValues(alpha: 0.3)),
                   const SizedBox(height: 16),
                   Text('Belum Cukup Data', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
                   const SizedBox(height: 8),
@@ -97,7 +97,7 @@ class _StatsViewState extends State<StatsView> {
                   children: [
                     Expanded(child: _buildDashboardCard(context, 'Total Investasi', provider.totalExpense, Theme.of(context).colorScheme.primaryContainer, Theme.of(context).colorScheme.onPrimaryContainer)),
                     const SizedBox(width: 12),
-                    Expanded(child: _buildDashboardCard(context, 'Prediksi Bulan Depan', projectedExpense, isDark ? Colors.orange.withOpacity(0.2) : Colors.orange.shade50, Colors.orange.shade700)),
+                    Expanded(child: _buildDashboardCard(context, 'Prediksi Bulan Depan', projectedExpense, isDark ? Colors.orange.withValues(alpha: 0.2) : Colors.orange.shade50, Colors.orange.shade700)),
                   ],
                 ),
 
@@ -138,7 +138,7 @@ class _StatsViewState extends State<StatsView> {
             color: isDark ? Colors.grey.shade900 : Colors.white,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200),
-            boxShadow: [isDark ? const BoxShadow(color: Colors.transparent) : BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+            boxShadow: [isDark ? const BoxShadow(color: Colors.transparent) : BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
           ),
           child: LineChart(
             LineChartData(
@@ -176,7 +176,7 @@ class _StatsViewState extends State<StatsView> {
                   belowBarData: BarAreaData(
                     show: true,
                     gradient: LinearGradient(
-                      colors: [lineColor.withOpacity(0.3), lineColor.withOpacity(0.0)],
+                      colors: [lineColor.withValues(alpha: 0.3), lineColor.withValues(alpha: 0.0)],
                       begin: Alignment.topCenter, end: Alignment.bottomCenter,
                     ),
                   ),
@@ -203,7 +203,7 @@ class _StatsViewState extends State<StatsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textColor.withOpacity(0.8))),
+          Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textColor.withValues(alpha: 0.8))),
           const SizedBox(height: 8),
           TweenAnimationBuilder<double>(
             tween: Tween<double>(begin: 0, end: value), duration: const Duration(seconds: 2), curve: Curves.easeOutCubic,
@@ -217,7 +217,7 @@ class _StatsViewState extends State<StatsView> {
   Widget _buildRadarChart(BuildContext context, Map<String, double> tagCounts) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24),
-      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.4), borderRadius: BorderRadius.circular(24)),
+      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(24)),
       child: Column(
         children: [
           const Text('🕸️ Analisis Profil Rasa', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
@@ -228,7 +228,7 @@ class _StatsViewState extends State<StatsView> {
             height: 250,
             child: RadarChart(
               RadarChartData(
-                dataSets: [RadarDataSet(fillColor: Theme.of(context).colorScheme.primary.withOpacity(0.4), borderColor: Theme.of(context).colorScheme.primary, entryRadius: 4, dataEntries: tagCounts.values.map((v) => RadarEntry(value: v)).toList())],
+                dataSets: [RadarDataSet(fillColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4), borderColor: Theme.of(context).colorScheme.primary, entryRadius: 4, dataEntries: tagCounts.values.map((v) => RadarEntry(value: v)).toList())],
                 radarBackgroundColor: Colors.transparent, borderData: FlBorderData(show: false),
                 radarBorderData: const BorderSide(color: Colors.grey, width: 1.5), titlePositionPercentageOffset: 0.15,
                 getTitle: (i, angle) => RadarChartTitle(text: tagCounts.keys.elementAt(i), angle: angle),
@@ -236,7 +236,7 @@ class _StatsViewState extends State<StatsView> {
                 tickCount: 4, ticksTextStyle: const TextStyle(color: Colors.transparent, fontSize: 10),
                 tickBorderData: BorderSide(color: Colors.grey.shade400, width: 1), gridBorderData: BorderSide(color: Colors.grey.shade400, width: 1),
               ),
-              swapAnimationDuration: const Duration(milliseconds: 800), swapAnimationCurve: Curves.easeOutCubic,
+              duration: const Duration(milliseconds: 800), curve: Curves.easeOutCubic,
             ),
           ),
         ],

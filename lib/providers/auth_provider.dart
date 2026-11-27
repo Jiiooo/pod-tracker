@@ -53,10 +53,8 @@ class AuthProvider extends ChangeNotifier {
 
       final googleUser = await googleSignIn.authenticate();
 
-      // 👇 CEGAT PEMBATALAN: Jika batal pilih email Google
-      if (googleUser == null) return 'SILENT_CANCEL';
-
-      final googleAuth = await googleUser.authentication;
+      // Pembatalan oleh user ditangani di blok catch (authenticate() melempar exception).
+      final googleAuth = googleUser.authentication;
       final idToken = googleAuth.idToken;
       if (idToken == null) throw 'ID Token tidak ditemukan!';
 

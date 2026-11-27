@@ -46,7 +46,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         actions: [
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00E5FF).withOpacity(0.1),
+              backgroundColor: const Color(0xFF00E5FF).withValues(alpha: 0.1),
               foregroundColor: const Color(0xFF00E5FF),
               elevation: 0,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -63,8 +63,10 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
         await authProvider.cancelRegistration();
         if (context.mounted) {
           Navigator.of(context).pushAndRemoveUntil(
@@ -72,7 +74,6 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                 (Route<dynamic> route) => false,
           );
         }
-        return false;
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF0a0a0a),
@@ -117,7 +118,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         boxShadow: [
-                          BoxShadow(color: const Color(0xFF00E5FF).withOpacity(0.15), blurRadius: 30, spreadRadius: 8)
+                          BoxShadow(color: const Color(0xFF00E5FF).withValues(alpha: 0.15), blurRadius: 30, spreadRadius: 8)
                         ],
                       ),
                       child: Image.asset('assets/logo_foreground.png', fit: BoxFit.contain),
@@ -167,16 +168,16 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
 
                         final error = await authProvider.setPassword(_passwordController.text.trim());
 
-                        if (error == null && mounted) {
+                        if (error == null && context.mounted) {
                           // 👇 REFRESH PROFIL & ARAHKAN KE SATPAM (AuthWrapper) 👇
                           await Provider.of<ProfileProvider>(context, listen: false).loadProfile();
-                          if (mounted) {
+                          if (context.mounted) {
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(builder: (_) => const AuthWrapper()),
                                   (Route<dynamic> route) => false,
                             );
                           }
-                        } else if (error != null && mounted) {
+                        } else if (error != null && context.mounted) {
                           _showPopup('Gagal Menyimpan', error, Icons.error_outline_rounded, Colors.redAccent);
                         }
                       },
@@ -227,7 +228,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: const Color(0xFF00E5FF).withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5)),
+          BoxShadow(color: const Color(0xFF00E5FF).withValues(alpha: 0.3), blurRadius: 15, offset: const Offset(0, 5)),
         ],
       ),
       child: ElevatedButton(

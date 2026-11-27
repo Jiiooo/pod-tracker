@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:pod_tracker/utils/photo_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/pod_config.dart';
 import '../providers/pod_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'widgets/config_form_sections.dart';
+import 'widgets/image_picker_card.dart';
 
 class AddConfigScreen extends StatefulWidget {
   final PodConfig? configToEdit;
@@ -92,72 +93,15 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
   }
 
   void _showImageSourceDialog() {
-    showModalBottomSheet(
+    showImageSourceSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Ambil dari Kamera'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _pickImage(ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Pilih dari Galeri'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _pickImage(ImageSource.gallery);
-              },
-            ),
-            if (_currentImagePath != null)
-              ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text('Hapus Foto', style: TextStyle(color: Colors.red)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  setState(() => _currentImagePath = null);
-                },
-              ),
-          ],
-        ),
-      ),
+      hasImage: _currentImagePath != null,
+      onCamera: () => _pickImage(ImageSource.camera),
+      onGallery: () => _pickImage(ImageSource.gallery),
+      onRemove: () => setState(() => _currentImagePath = null),
     );
   }
 
-  void _showSuccessAnimation(String message) {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: false,
-      pageBuilder: (_, __, ___) => const SizedBox(),
-      transitionBuilder: (ctx, anim1, anim2, child) {
-        return ScaleTransition(
-          scale: CurvedAnimation(parent: anim1, curve: Curves.elasticOut),
-          child: AlertDialog(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            content: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(20)),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.green, size: 72),
-                  const SizedBox(height: 16),
-                  Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-      transitionDuration: const Duration(milliseconds: 500),
-    );
-  }
 
   void _saveData() async {
     if (_formKey.currentState!.validate()) {
@@ -201,7 +145,7 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
         provider.addConfig(newData);
       }
 
-      _showSuccessAnimation(widget.configToEdit != null ? 'Data Diperbarui!' : 'Berhasil Disimpan!');
+      showSuccessAnimation(context, widget.configToEdit != null ? 'Data Diperbarui!' : 'Berhasil Disimpan!');
       await Future.delayed(const Duration(milliseconds: 1200));
 
       if (mounted) {
@@ -236,88 +180,24 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             // --- AREA FOTO BOTOL LIQUID (SUDAH MENDUKUNG CLOUD) ---
-            Center(
-              child: GestureDetector(
-                onTap: _showImageSourceDialog,
-                child: Container(
-                  height: 180,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade400, width: 2, style: BorderStyle.solid),
-                  ),
-                  clipBehavior: Clip.hardEdge,
-                  child: _currentImagePath != null
-                  // CEK APAKAH FOTO DARI INTERNET ATAU MEMORI HP
-                      ? StoragePhoto(value: _currentImagePath!, fit: BoxFit.cover)
-                      : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add_a_photo, size: 50, color: Colors.grey.shade600),
-                      const SizedBox(height: 8),
-                      Text('Tambah Foto Liquid', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            ImagePickerCard(imagePath: _currentImagePath, onTap: _showImageSourceDialog),
             const SizedBox(height: 24),
 
-            DropdownButtonFormField<String>(
-              value: _selectedDevice,
-              decoration: InputDecoration(
-                labelText: 'Pilih Device / Pod',
-                prefixIcon: const Icon(Icons.vape_free),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              items: _deviceOptions.map((String device) {
-                return DropdownMenuItem<String>(
-                  value: device,
-                  child: Text(device),
-                );
-              }).toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  _selectedDevice = newValue!;
-                  if (_selectedDevice != 'Lainnya') {
-                    _customDeviceController.clear();
-                  }
-                });
-              },
+            DeviceSelector(
+              selectedDevice: _selectedDevice,
+              options: _deviceOptions,
+              customController: _customDeviceController,
+              onChanged: (value) => setState(() {
+                _selectedDevice = value;
+                if (_selectedDevice != 'Lainnya') {
+                  _customDeviceController.clear();
+                }
+              }),
             ),
-
-            if (_selectedDevice == 'Lainnya') ...[
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _customDeviceController,
-                decoration: InputDecoration(
-                  labelText: 'Ketik Nama Device Baru',
-                  prefixIcon: const Icon(Icons.edit),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                validator: (value) {
-                  if (_selectedDevice == 'Lainnya' && (value == null || value.trim().isEmpty)) {
-                    return 'Nama device tidak boleh kosong';
-                  }
-                  return null;
-                },
-              ),
-            ],
 
             const SizedBox(height: 16),
 
-            Card(
-              elevation: 0,
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: ListTile(
-                leading: const Icon(Icons.calendar_month),
-                title: const Text('Tanggal Mulai Pakai'),
-                subtitle: Text('${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}'),
-                trailing: const Icon(Icons.edit_calendar),
-                onTap: _pickDate,
-              ),
-            ),
+            StartDateCard(date: _selectedDate, onTap: _pickDate),
             const SizedBox(height: 16),
 
             TextFormField(
@@ -327,52 +207,22 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
             ),
             const SizedBox(height: 16),
 
-            const Text('Karakter Rasa (Pilih 1 atau lebih):', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8.0,
-              runSpacing: 0.0,
-              children: _availableTags.map((tag) {
-                final isSelected = _selectedTags.contains(tag);
-                return FilterChip(
-                  label: Text(tag),
-                  selected: isSelected,
-                  selectedColor: Theme.of(context).colorScheme.primaryContainer,
-                  checkmarkColor: Theme.of(context).colorScheme.primary,
-                  onSelected: (bool selected) {
-                    setState(() {
-                      if (selected) {
-                        _selectedTags.add(tag);
-                      } else {
-                        _selectedTags.remove(tag);
-                      }
-                    });
-                  },
-                );
-              }).toList(),
+            FlavorTagSelector(
+              availableTags: _availableTags,
+              selectedTags: _selectedTags,
+              onToggle: (tag, selected) => setState(() {
+                if (selected) {
+                  _selectedTags.add(tag);
+                } else {
+                  _selectedTags.remove(tag);
+                }
+              }),
             ),
             const SizedBox(height: 16),
 
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _resistanceController,
-                    decoration: const InputDecoration(labelText: 'Resistance (Ohm)', border: OutlineInputBorder()),
-                    keyboardType: TextInputType.number,
-                    validator: (value) => value!.isEmpty ? 'Wajib' : null,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _wattageController,
-                    decoration: const InputDecoration(labelText: 'Wattage (W)', border: OutlineInputBorder()),
-                    keyboardType: TextInputType.number,
-                    validator: (value) => value!.isEmpty ? 'Wajib' : null,
-                  ),
-                ),
-              ],
+            ResistanceWattageRow(
+              resistanceController: _resistanceController,
+              wattageController: _wattageController,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -381,18 +231,11 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: _airflow,
-              decoration: const InputDecoration(labelText: 'Posisi Airflow', border: OutlineInputBorder()),
-              items: ['Tertutup Rapat', 'Setengah', 'Terbuka Penuh'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-              onChanged: (val) => setState(() => _airflow = val!),
-            ),
-            const SizedBox(height: 24),
-            Text('Rating Rasa: ${_rating.toStringAsFixed(1)} / 5.0', style: const TextStyle(fontWeight: FontWeight.bold)),
-            Slider(
-              value: _rating, min: 1.0, max: 5.0, divisions: 40,
-              label: _rating.toStringAsFixed(1),
-              onChanged: (val) => setState(() => _rating = double.parse(val.toStringAsFixed(1))),
+            AirflowAndRatingSection(
+              airflow: _airflow,
+              rating: _rating,
+              onAirflowChanged: (val) => setState(() => _airflow = val),
+              onRatingChanged: (val) => setState(() => _rating = val),
             ),
             const SizedBox(height: 32),
             SizedBox(

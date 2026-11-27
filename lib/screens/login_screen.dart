@@ -55,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
         actions: [
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00E5FF).withOpacity(0.1),
+              backgroundColor: const Color(0xFF00E5FF).withValues(alpha: 0.1),
               foregroundColor: const Color(0xFF00E5FF),
               elevation: 0,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -100,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       boxShadow: [
-                        BoxShadow(color: const Color(0xFF00E5FF).withOpacity(0.15), blurRadius: 30, spreadRadius: 8)
+                        BoxShadow(color: const Color(0xFF00E5FF).withValues(alpha: 0.15), blurRadius: 30, spreadRadius: 8)
                       ],
                     ),
                     child: Image.asset('assets/logo_foreground.png', fit: BoxFit.contain),
@@ -144,16 +144,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       }
                       final error = await authProvider.loginWithEmail(_emailController.text.trim(), _passwordController.text.trim());
 
-                      if (error == null && mounted) {
+                      if (error == null && context.mounted) {
                         // 👇 REFRESH PROFIL & ARAHKAN KE SATPAM (AuthWrapper) 👇
                         await Provider.of<ProfileProvider>(context, listen: false).loadProfile();
-                        if (mounted) {
+                        if (context.mounted) {
                           Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute(builder: (_) => const AuthWrapper()),
                                 (Route<dynamic> route) => false,
                           );
                         }
-                      } else if (error != null && mounted) {
+                      } else if (error != null && context.mounted) {
                         String errorMessage = error;
                         if (error.toLowerCase().contains('invalid login credentials')) {
                           errorMessage = 'Email atau password yang kamu masukkan salah. Silakan periksa kembali.';
@@ -193,16 +193,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         if (error == 'SILENT_CANCEL') return;
 
-                        if (error == null && mounted) {
+                        if (error == null && context.mounted) {
                           // 👇 REFRESH PROFIL & ARAHKAN KE SATPAM (AuthWrapper) 👇
                           await Provider.of<ProfileProvider>(context, listen: false).loadProfile();
-                          if (mounted) {
+                          if (context.mounted) {
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(builder: (_) => const AuthWrapper()),
                                   (Route<dynamic> route) => false,
                             );
                           }
-                        } else if (error != null && mounted) {
+                        } else if (error != null && context.mounted) {
                           _showPopup('Gagal Masuk', error, Icons.error_outline_rounded, Colors.redAccent);
                         }
                       },
@@ -273,7 +273,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: const Color(0xFF00E5FF).withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5)),
+          BoxShadow(color: const Color(0xFF00E5FF).withValues(alpha: 0.3), blurRadius: 15, offset: const Offset(0, 5)),
         ],
       ),
       child: ElevatedButton(

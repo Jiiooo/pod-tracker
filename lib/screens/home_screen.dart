@@ -5,7 +5,6 @@ import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 
 import '../providers/pod_provider.dart';
 import '../providers/theme_provider.dart';
-import '../providers/profile_provider.dart';
 
 // --- IMPORT VIEW YANG SUDAH KITA PECAH TADI ---
 import 'views/stats_view.dart';
@@ -59,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildAppBarAction({required IconData icon, required bool isDark, required VoidCallback onTap, String? tooltip}) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 16),
-      decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05), shape: BoxShape.circle),
+      decoration: BoxDecoration(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05), shape: BoxShape.circle),
       child: IconButton(
         icon: Icon(icon, color: isDark ? Colors.white : Colors.black87, size: 22),
         tooltip: tooltip,
@@ -91,11 +90,11 @@ class _HomeScreenState extends State<HomeScreen> {
           flexibleSpace: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: isDark ? [const Color(0xFF1E1E1E), const Color(0xFF121212)] : [primaryColor.withOpacity(0.6), primaryColor.withOpacity(0.9)],
+                colors: isDark ? [const Color(0xFF1E1E1E), const Color(0xFF121212)] : [primaryColor.withValues(alpha: 0.6), primaryColor.withValues(alpha: 0.9)],
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
               ),
               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
-              boxShadow: [BoxShadow(color: (isDark ? Colors.black : primaryColor).withOpacity(0.25), blurRadius: 15, offset: const Offset(0, 6))],
+              boxShadow: [BoxShadow(color: (isDark ? Colors.black : primaryColor).withValues(alpha: 0.25), blurRadius: 15, offset: const Offset(0, 6))],
             ),
           ),
           shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(bottom: Radius.circular(28))),
