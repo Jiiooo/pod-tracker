@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/pod_config.dart';
+import '../utils/csv_codec.dart';
 import '../utils/photo_storage.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -20,6 +23,13 @@ class PodProvider with ChangeNotifier {
 
   String _searchQuery = '';
   String _sortBy = 'date';
+  Set<String> _selectedTags = {};
+
+  // Cache daftar hasil filter/sort; dihitung ulang hanya saat _dirty.
+  bool _dirty = true;
+  List<PodConfig> _activeCache = const [];
+  List<PodConfig> _archivedCache = const [];
+  List<String> _tagsCache = const [];
 
   String? get _currentUserId => _supabase.auth.currentUser?.id;
 
@@ -42,6 +52,8 @@ class PodProvider with ChangeNotifier {
   /// Logout: hanya kosongkan memori, data lokal (Hive) tetap aman.
   void clearData() {
     _configs = [];
+    _selectedTags = {};
+    _dirty = true;
     notifyListeners();
   }
 
@@ -104,6 +116,7 @@ class PodProvider with ChangeNotifier {
     _configs = uid != null
         ? _box.values.where((c) => c.userId == uid && !c.isDeleted).toList()
         : [];
+    _dirty = true;
     notifyListeners();
   }
 
@@ -118,9 +131,13 @@ class PodProvider with ChangeNotifier {
   }
 
   /// Hapus objek foto lama. Gagal hanya dicatat, tidak boleh memblokir sync.
-  Future<void> _removeStoredPhoto(String? value) async {
+  Future<void> _removeStoredPhoto(String? value, {String? exceptId}) async {
     final path = storagePathFromValue(value);
     if (path == null) return;
+    // "Pakai lagi" membagi satu foto ke beberapa entri: jangan hapus bila masih dipakai.
+    final stillUsed = _box.values.any((c) =>
+        c.id != exceptId && !c.isDeleted && storagePathFromValue(c.imagePath) == path);
+    if (stillUsed) return;
     try {
       await _supabase.storage.from('pod_images').remove([path]);
     } catch (e) {
@@ -162,21 +179,30 @@ class PodProvider with ChangeNotifier {
             final oldImage = await _remoteImageValue(c.id, uid);
             await _supabase.from('pod_configs').delete().eq('id', c.id).eq('user_id', uid);
             await _box.delete(c.id);
-            await _removeStoredPhoto(oldImage ?? (isLocalFile(c.imagePath) ? null : c.imagePath));
+            await _removeStoredPhoto(oldImage ?? (isLocalFile(c.imagePath) ? null : c.imagePath), exceptId: c.id);
             continue;
           }
 
           var imagePath = c.imagePath;
           String? oldImage;
+          String? uploaded; // objek yang baru diupload di putaran ini
           if (isLocalFile(imagePath)) {
             oldImage = await _remoteImageValue(c.id, uid);
             imagePath = await _uploadLiquidImage(imagePath!);
+            uploaded = imagePath;
           }
 
           final toPush = _copyPending(snap)..imagePath = imagePath;
-          await _supabase.from('pod_configs').upsert(podConfigToRow(toPush));
+          try {
+            await _supabase.from('pod_configs').upsert(podConfigToRow(toPush));
+          } catch (_) {
+            // Upload berhasil tapi upsert gagal: hapus objek yatim agar retry
+            // tidak menumpuk file. Record tetap pending dengan path lokal.
+            if (uploaded != null) await _removeStoredPhoto(uploaded, exceptId: c.id);
+            rethrow;
+          }
           if (oldImage != null && oldImage != imagePath) {
-            await _removeStoredPhoto(oldImage);
+            await _removeStoredPhoto(oldImage, exceptId: c.id);
           }
 
           // Hanya tandai synced jika record tidak diubah lagi selama proses upload.
@@ -240,6 +266,15 @@ class PodProvider with ChangeNotifier {
     await _push();
   }
 
+  /// Tambah banyak record sekaligus dengan satu kali push.
+  Future<void> addConfigs(List<PodConfig> configs) async {
+    for (final c in configs) {
+      await _box.put(c.id, _copyPending(c));
+    }
+    _loadLocalData();
+    await _push();
+  }
+
   Future<void> updateConfig(PodConfig newConfig) async {
     await _box.put(newConfig.id, _copyPending(newConfig));
     _loadLocalData();
@@ -255,27 +290,83 @@ class PodProvider with ChangeNotifier {
   }
 
   // --- 3. FILTER, SORTING & STATISTIK UI ---
-  void setSearchQuery(String query) { _searchQuery = query; notifyListeners(); }
-  void setSortBy(String sort) { _sortBy = sort; notifyListeners(); }
+  void setSearchQuery(String query) { _searchQuery = query; _dirty = true; notifyListeners(); }
+  void setSortBy(String sort) { _sortBy = sort; _dirty = true; notifyListeners(); }
 
-  List<PodConfig> get activeConfigs {
-    var filtered = _configs.where((c) => c.isStillActive && !c.isDeleted).toList();
-    if (_searchQuery.isNotEmpty) {
-      filtered = filtered.where((c) =>
-      c.deviceName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          c.liquidName.toLowerCase().contains(_searchQuery.toLowerCase())
-      ).toList();
-    }
-    if (_sortBy == 'date') {
-      filtered.sort((a, b) => b.dateStarted.compareTo(a.dateStarted));
-    } else if (_sortBy == 'rating') {
-      filtered.sort((a, b) => b.flavorRating.compareTo(a.flavorRating));
-    }
+  Set<String> get selectedTags => Set.unmodifiable(_selectedTags);
 
-    return filtered;
+  void toggleTag(String tag) {
+    final existing = _selectedTags.where((t) => t.toLowerCase() == tag.toLowerCase()).toList();
+    if (existing.isEmpty) {
+      _selectedTags = {..._selectedTags, tag};
+    } else {
+      _selectedTags = _selectedTags.difference(existing.toSet());
+    }
+    _dirty = true;
+    notifyListeners();
   }
 
-  List<PodConfig> get archivedConfigs => _configs.where((c) => !c.isStillActive && !c.isDeleted).toList();
+  void clearTagFilter() {
+    if (_selectedTags.isEmpty) return;
+    _selectedTags = {};
+    _dirty = true;
+    notifyListeners();
+  }
+
+  /// Semua tag dari config yang tidak dihapus, unik (tanpa beda huruf), terurut.
+  List<String> get availableTags {
+    _refresh();
+    return _tagsCache;
+  }
+
+  List<PodConfig> get activeConfigs {
+    _refresh();
+    return _activeCache;
+  }
+
+  List<PodConfig> get archivedConfigs {
+    _refresh();
+    return _archivedCache;
+  }
+
+  void _refresh() {
+    if (!_dirty) return;
+    _dirty = false;
+
+    final live = _configs.where((c) => !c.isDeleted).toList();
+
+    final seen = <String, String>{};
+    for (final c in live) {
+      for (final t in c.flavorTags) {
+        final trimmed = t.trim();
+        if (trimmed.isNotEmpty) seen.putIfAbsent(trimmed.toLowerCase(), () => trimmed);
+      }
+    }
+    _tagsCache = seen.values.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    // Buang tag terpilih yang sudah tidak ada lagi.
+    _selectedTags = _selectedTags.where((t) => seen.containsKey(t.toLowerCase())).toSet();
+    final wanted = _selectedTags.map((t) => t.toLowerCase()).toSet();
+    bool tagOk(PodConfig c) =>
+        wanted.isEmpty || c.flavorTags.any((t) => wanted.contains(t.trim().toLowerCase()));
+
+    final q = _searchQuery.toLowerCase();
+    final active = live.where((c) {
+      if (!c.isStillActive || !tagOk(c)) return false;
+      return q.isEmpty ||
+          c.deviceName.toLowerCase().contains(q) ||
+          c.liquidName.toLowerCase().contains(q);
+    }).toList();
+    if (_sortBy == 'date') {
+      active.sort((a, b) => b.dateStarted.compareTo(a.dateStarted));
+    } else if (_sortBy == 'rating') {
+      active.sort((a, b) => b.flavorRating.compareTo(a.flavorRating));
+    }
+    _activeCache = active;
+    _archivedCache = live.where((c) => !c.isStillActive && tagOk(c)).toList();
+  }
+
   double get totalExpense => _configs.where((c) => !c.isDeleted).fold(0.0, (sum, item) => sum + item.price);
 
   // --- 4. ARSIP & EXPORT CSV ---
@@ -295,12 +386,22 @@ class PodProvider with ChangeNotifier {
     }
   }
 
+  /// Ringkasan entri sebelumnya dengan nama liquid sama (tanpa beda huruf).
+  /// Null jika tidak ada.
+  ({int count, double lastRating})? historyFor(String liquidName, {String? excludeId}) {
+    final q = liquidName.trim().toLowerCase();
+    if (q.isEmpty) return null;
+    final matches = _configs
+        .where((c) => !c.isDeleted && c.id != excludeId && c.liquidName.trim().toLowerCase() == q)
+        .toList();
+    if (matches.isEmpty) return null;
+    final last = matches.reduce((a, b) => a.dateStarted.isAfter(b.dateStarted) ? a : b);
+    return (count: matches.length, lastRating: last.flavorRating);
+  }
+
   Future<void> exportToCSV() async {
     try {
-      String csvData = "Device,Liquid,Resistance(Ohm),Watt,Rating,Harga,Tanggal\n";
-      for (var c in _configs.where((c) => !c.isDeleted)) {
-        csvData += "${c.deviceName},${c.liquidName},${c.resistance},${c.optimalWattage},${c.flavorRating},${c.price},${c.dateStarted.toIso8601String().split('T')[0]}\n";
-      }
+      final csvData = podsToCsv(_configs.where((c) => !c.isDeleted));
       final directory = await getTemporaryDirectory();
       final path = '${directory.path}/Backup_Tracker_Pod.csv';
       await File(path).writeAsString(csvData);
@@ -310,5 +411,30 @@ class PodProvider with ChangeNotifier {
       debugPrint('CSV Error: $e');
       rethrow;
     }
+  }
+
+  /// Pilih file CSV lalu buat record BARU dari isinya. Null jika dibatalkan.
+  Future<CsvImportResult?> importFromCSV() async {
+    final uid = _currentUserId;
+    if (uid == null) throw StateError('Sesi terputus. Silakan login ulang.');
+
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+      withData: true,
+    );
+    if (picked == null || picked.files.isEmpty) return null;
+    final f = picked.files.single;
+    final bytes = f.bytes ?? (f.path != null ? await File(f.path!).readAsBytes() : null);
+    if (bytes == null) throw StateError('File tidak bisa dibaca.');
+
+    final stamp = DateTime.now().toString();
+    final result = parsePodCsv(
+      utf8.decode(bytes, allowMalformed: true),
+      userId: uid,
+      newId: (i) => '$stamp#$i',
+    );
+    if (result.configs.isNotEmpty) await addConfigs(result.configs);
+    return result;
   }
 }

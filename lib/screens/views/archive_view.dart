@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:lottie/lottie.dart';
 import '../../providers/pod_provider.dart';
 import '../../utils/ui_helpers.dart'; // Import animasi pop-up
+import '../add_config_screen.dart';
+import '../widgets/tag_filter_bar.dart';
 
 class ArchiveView extends StatelessWidget {
   const ArchiveView({super.key});
@@ -15,8 +17,9 @@ class ArchiveView extends StatelessWidget {
       builder: (context, provider, child) {
         final archived = provider.archivedConfigs;
 
+        Widget body;
         if (archived.isEmpty) {
-          return Center(
+          body = Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -31,9 +34,8 @@ class ArchiveView extends StatelessWidget {
                 ],
               )
           );
-        }
-
-        return ListView.builder(
+        } else {
+          body = ListView.builder(
           itemCount: archived.length,
           padding: const EdgeInsets.only(left: 12, right: 12, top: 12, bottom: 100),
           itemBuilder: (ctx, i) {
@@ -49,6 +51,7 @@ class ArchiveView extends StatelessWidget {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    IconButton(tooltip: 'Pakai lagi', icon: const Icon(Icons.content_copy_rounded, color: Colors.blue), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AddConfigScreen(prefillFrom: config)))),
                     IconButton(icon: const Icon(Icons.restore_rounded, color: Colors.green), onPressed: () { provider.restoreConfig(config.id); showActionAnimation(context, 'Data Dikembalikan!', Icons.restore_rounded, Colors.green); }),
                     IconButton(icon: const Icon(Icons.delete_forever_rounded, color: Colors.red), onPressed: () => showDialog(context: context, builder: (ctx) => AlertDialog(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), title: const Text('Konfirmasi Hapus'), content: Text('Hapus "${config.liquidName}" permanen?'), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')), ElevatedButton(onPressed: () { Navigator.pop(ctx); provider.deleteConfig(config.id); showActionAnimation(context, 'Dihapus Permanen', Icons.delete_outline_rounded, Colors.red); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white, elevation: 0), child: const Text('Hapus'))]))),
                   ],
@@ -57,6 +60,9 @@ class ArchiveView extends StatelessWidget {
             );
           },
         );
+        }
+
+        return Column(children: [const TagFilterBar(), Expanded(child: body)]);
       },
     );
   }
