@@ -40,10 +40,10 @@ class ArchiveView extends StatelessWidget {
             final config = archived[i];
             return Card(
               elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.6), margin: const EdgeInsets.only(bottom: 8),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6), margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.amber.withOpacity(0.2), shape: BoxShape.circle), child: const Icon(Icons.history_rounded, color: Colors.amber)),
+                leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.amber.withValues(alpha: 0.2), shape: BoxShape.circle), child: const Icon(Icons.history_rounded, color: Colors.amber)),
                 title: Text(config.liquidName, style: const TextStyle(fontWeight: FontWeight.w800)),
                 subtitle: Text('${config.deviceName} • Rp ${config.price.toStringAsFixed(0)}'),
                 trailing: Row(

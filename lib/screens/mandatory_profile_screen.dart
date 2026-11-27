@@ -42,7 +42,7 @@ class _MandatoryProfileScreenState extends State<MandatoryProfileScreen> {
         content: Text(message, style: GoogleFonts.plusJakartaSans(fontSize: 14, height: 1.5, color: Colors.grey.shade400)),
         actions: [
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF).withOpacity(0.1), foregroundColor: const Color(0xFF00E5FF), elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF).withValues(alpha: 0.1), foregroundColor: const Color(0xFF00E5FF), elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
             onPressed: () => Navigator.pop(ctx),
             child: Text('Mengerti', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
           ),
@@ -56,8 +56,8 @@ class _MandatoryProfileScreenState extends State<MandatoryProfileScreen> {
     final profileProvider = Provider.of<ProfileProvider>(context);
 
     // Mencegah user kabur pakai tombol back
-    return WillPopScope(
-      onWillPop: () async => false,
+    return PopScope(
+      canPop: false,
       child: Scaffold(
         backgroundColor: const Color(0xFF0a0a0a),
         body: Stack(
@@ -92,7 +92,7 @@ class _MandatoryProfileScreenState extends State<MandatoryProfileScreen> {
                         children: [
                           Container(
                             padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.5), width: 3), boxShadow: [BoxShadow(color: const Color(0xFF00E5FF).withOpacity(0.2), blurRadius: 20, spreadRadius: 5)]),
+                            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5), width: 3), boxShadow: [BoxShadow(color: const Color(0xFF00E5FF).withValues(alpha: 0.2), blurRadius: 20, spreadRadius: 5)]),
                             child: CircleAvatar(
                               radius: 55,
                               backgroundColor: Colors.grey.shade900,
@@ -172,7 +172,7 @@ class _MandatoryProfileScreenState extends State<MandatoryProfileScreen> {
       width: double.infinity, height: 56,
       decoration: BoxDecoration(
         gradient: const LinearGradient(colors: [Color(0xFF00E5FF), Color(0xFF00BCD4)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: const Color(0xFF00E5FF).withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))],
+        borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: const Color(0xFF00E5FF).withValues(alpha: 0.3), blurRadius: 15, offset: const Offset(0, 5))],
       ),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),

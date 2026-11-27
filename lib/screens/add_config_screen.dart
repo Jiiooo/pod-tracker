@@ -265,7 +265,7 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
             const SizedBox(height: 24),
 
             DropdownButtonFormField<String>(
-              value: _selectedDevice,
+              initialValue: _selectedDevice,
               decoration: InputDecoration(
                 labelText: 'Pilih Device / Pod',
                 prefixIcon: const Icon(Icons.vape_free),
@@ -382,7 +382,7 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _airflow,
+              initialValue: _airflow,
               decoration: const InputDecoration(labelText: 'Posisi Airflow', border: OutlineInputBorder()),
               items: ['Tertutup Rapat', 'Setengah', 'Terbuka Penuh'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
               onChanged: (val) => setState(() => _airflow = val!),

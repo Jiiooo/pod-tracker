@@ -266,8 +266,11 @@ class PodProvider with ChangeNotifier {
           c.liquidName.toLowerCase().contains(_searchQuery.toLowerCase())
       ).toList();
     }
-    if (_sortBy == 'date') filtered.sort((a, b) => b.dateStarted.compareTo(a.dateStarted));
-    else if (_sortBy == 'rating') filtered.sort((a, b) => b.flavorRating.compareTo(a.flavorRating));
+    if (_sortBy == 'date') {
+      filtered.sort((a, b) => b.dateStarted.compareTo(a.dateStarted));
+    } else if (_sortBy == 'rating') {
+      filtered.sort((a, b) => b.flavorRating.compareTo(a.flavorRating));
+    }
 
     return filtered;
   }
@@ -302,7 +305,7 @@ class PodProvider with ChangeNotifier {
       final path = '${directory.path}/Backup_Tracker_Pod.csv';
       await File(path).writeAsString(csvData);
 
-      await Share.shareXFiles([XFile(path)], text: 'Backup Data Pod Tracker');
+      await SharePlus.instance.share(ShareParams(files: [XFile(path)], text: 'Backup Data Pod Tracker'));
     } catch (e) {
       debugPrint('CSV Error: $e');
       rethrow;

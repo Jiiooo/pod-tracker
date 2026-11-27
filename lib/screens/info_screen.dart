@@ -50,20 +50,20 @@ class InfoScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? Colors.grey.shade900 : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: category.themeColor.withOpacity(isDark ? 0.5 : 0.3), width: 1.5),
-        boxShadow: [isDark ? BoxShadow(color: category.themeColor.withOpacity(0.05), blurRadius: 20, spreadRadius: 1) : BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(color: category.themeColor.withValues(alpha: isDark ? 0.5 : 0.3), width: 1.5),
+        boxShadow: [isDark ? BoxShadow(color: category.themeColor.withValues(alpha: 0.05), blurRadius: 20, spreadRadius: 1) : BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           onExpansionChanged: (expanded) { if (expanded) HapticFeedback.lightImpact(); },
           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), childrenPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
-          leading: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: category.themeColor.withOpacity(0.15), borderRadius: BorderRadius.circular(14)), child: Icon(category.icon, color: category.themeColor, size: 28)),
+          leading: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: category.themeColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)), child: Icon(category.icon, color: category.themeColor, size: 28)),
           title: Row(
             children: [
               Text(category.title, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: category.themeColor)),
               const SizedBox(width: 6),
-              Expanded(child: Text(category.nicotine, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: category.themeColor.withOpacity(0.7)), overflow: TextOverflow.ellipsis)),
+              Expanded(child: Text(category.nicotine, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: category.themeColor.withValues(alpha: 0.7)), overflow: TextOverflow.ellipsis)),
             ],
           ),
           subtitle: Padding(padding: const EdgeInsets.only(top: 4.0), child: Text(category.subtitle, style: TextStyle(fontSize: 11.5, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600, height: 1.3))),
@@ -76,7 +76,7 @@ class InfoScreen extends StatelessWidget {
   Widget _buildDeviceSetupTile(BuildContext context, DeviceSetup setup, bool isDark, Color accentColor) {
     return Container(
       margin: const EdgeInsets.only(top: 12),
-      decoration: BoxDecoration(color: isDark ? Colors.grey.shade800.withOpacity(0.5) : Colors.grey.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
+      decoration: BoxDecoration(color: isDark ? Colors.grey.shade800.withValues(alpha: 0.5) : Colors.grey.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
