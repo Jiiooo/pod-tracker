@@ -131,9 +131,13 @@ class PodProvider with ChangeNotifier {
   }
 
   /// Hapus objek foto lama. Gagal hanya dicatat, tidak boleh memblokir sync.
-  Future<void> _removeStoredPhoto(String? value) async {
+  Future<void> _removeStoredPhoto(String? value, {String? exceptId}) async {
     final path = storagePathFromValue(value);
     if (path == null) return;
+    // "Pakai lagi" membagi satu foto ke beberapa entri: jangan hapus bila masih dipakai.
+    final stillUsed = _box.values.any((c) =>
+        c.id != exceptId && !c.isDeleted && storagePathFromValue(c.imagePath) == path);
+    if (stillUsed) return;
     try {
       await _supabase.storage.from('pod_images').remove([path]);
     } catch (e) {
@@ -175,7 +179,7 @@ class PodProvider with ChangeNotifier {
             final oldImage = await _remoteImageValue(c.id, uid);
             await _supabase.from('pod_configs').delete().eq('id', c.id).eq('user_id', uid);
             await _box.delete(c.id);
-            await _removeStoredPhoto(oldImage ?? (isLocalFile(c.imagePath) ? null : c.imagePath));
+            await _removeStoredPhoto(oldImage ?? (isLocalFile(c.imagePath) ? null : c.imagePath), exceptId: c.id);
             continue;
           }
 
@@ -189,7 +193,7 @@ class PodProvider with ChangeNotifier {
           final toPush = _copyPending(snap)..imagePath = imagePath;
           await _supabase.from('pod_configs').upsert(podConfigToRow(toPush));
           if (oldImage != null && oldImage != imagePath) {
-            await _removeStoredPhoto(oldImage);
+            await _removeStoredPhoto(oldImage, exceptId: c.id);
           }
 
           // Hanya tandai synced jika record tidak diubah lagi selama proses upload.
@@ -371,6 +375,19 @@ class PodProvider with ChangeNotifier {
       final copy = _copyPending(existing)..isStillActive = true;
       await updateConfig(copy);
     }
+  }
+
+  /// Ringkasan entri sebelumnya dengan nama liquid sama (tanpa beda huruf).
+  /// Null jika tidak ada.
+  ({int count, double lastRating})? historyFor(String liquidName, {String? excludeId}) {
+    final q = liquidName.trim().toLowerCase();
+    if (q.isEmpty) return null;
+    final matches = _configs
+        .where((c) => !c.isDeleted && c.id != excludeId && c.liquidName.trim().toLowerCase() == q)
+        .toList();
+    if (matches.isEmpty) return null;
+    final last = matches.reduce((a, b) => a.dateStarted.isAfter(b.dateStarted) ? a : b);
+    return (count: matches.length, lastRating: last.flavorRating);
   }
 
   Future<void> exportToCSV() async {

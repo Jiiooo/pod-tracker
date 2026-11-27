@@ -9,7 +9,11 @@ import 'widgets/image_picker_card.dart';
 
 class AddConfigScreen extends StatefulWidget {
   final PodConfig? configToEdit;
-  const AddConfigScreen({super.key, this.configToEdit});
+
+  /// Isi form dari config lama, tapi simpan sebagai entri baru (id baru,
+  /// tanggal hari ini, aktif).
+  final PodConfig? prefillFrom;
+  const AddConfigScreen({super.key, this.configToEdit, this.prefillFrom});
 
   @override
   State<AddConfigScreen> createState() => _AddConfigScreenState();
@@ -46,27 +50,29 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
   void initState() {
     super.initState();
     final isEdit = widget.configToEdit != null;
+    final source = widget.configToEdit ?? widget.prefillFrom;
 
-    _liquidController = TextEditingController(text: isEdit ? widget.configToEdit!.liquidName : '');
-    _resistanceController = TextEditingController(text: isEdit ? widget.configToEdit!.resistance.toString() : '');
-    _wattageController = TextEditingController(text: isEdit ? widget.configToEdit!.optimalWattage.toString() : '');
-    _priceController = TextEditingController(text: isEdit ? widget.configToEdit!.price.toInt().toString() : '');
+    _liquidController = TextEditingController(text: source?.liquidName ?? '');
+    _resistanceController = TextEditingController(text: source?.resistance.toString() ?? '');
+    _wattageController = TextEditingController(text: source?.optimalWattage.toString() ?? '');
+    _priceController = TextEditingController(text: source?.price.toInt().toString() ?? '');
     _customDeviceController = TextEditingController();
 
-    if (isEdit) {
-      _airflow = widget.configToEdit!.airflowLevel;
-      _rating = widget.configToEdit!.flavorRating;
-      _selectedDate = widget.configToEdit!.dateStarted;
-      _selectedTags = List.from(widget.configToEdit!.flavorTags);
+    if (source != null) {
+      _airflow = source.airflowLevel;
+      _rating = source.flavorRating;
+      // Entri baru dari riwayat selalu mulai hari ini.
+      if (isEdit) _selectedDate = source.dateStarted;
+      _selectedTags = List.from(source.flavorTags);
 
       // LANGSUNG MASUKKAN PATH ATAU LINK DARI DATABASE
-      _currentImagePath = widget.configToEdit!.imagePath;
+      _currentImagePath = source.imagePath;
 
-      if (_deviceOptions.contains(widget.configToEdit!.deviceName)) {
-        _selectedDevice = widget.configToEdit!.deviceName;
+      if (_deviceOptions.contains(source.deviceName)) {
+        _selectedDevice = source.deviceName;
       } else {
         _selectedDevice = 'Lainnya';
-        _customDeviceController.text = widget.configToEdit!.deviceName;
+        _customDeviceController.text = source.deviceName;
       }
     }
   }
@@ -155,6 +161,21 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
     }
   }
 
+  Widget _buildHistoryHint() {
+    final history = context.read<PodProvider>().historyFor(
+          _liquidController.text,
+          excludeId: widget.configToEdit?.id,
+        );
+    if (history == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, left: 4),
+      child: Text(
+        'Riwayat: ${history.count}x dicatat • rating terakhir ${history.lastRating}',
+        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _liquidController.dispose();
@@ -204,7 +225,9 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
               controller: _liquidController,
               decoration: const InputDecoration(labelText: 'Nama Liquid', border: OutlineInputBorder()),
               validator: (value) => value!.isEmpty ? 'Wajib diisi' : null,
+              onChanged: (_) => setState(() {}),
             ),
+            _buildHistoryHint(),
             const SizedBox(height: 16),
 
             FlavorTagSelector(
