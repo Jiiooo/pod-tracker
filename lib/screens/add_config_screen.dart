@@ -153,13 +153,9 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
         provider.addConfig(newData);
       }
 
-      showSuccessAnimation(context, widget.configToEdit != null ? 'Data Diperbarui!' : 'Berhasil Disimpan!');
-      await Future.delayed(const Duration(milliseconds: 1200));
-
-      if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-        Navigator.pop(context);
-      }
+      // The dialog closes itself; only pop this form afterwards.
+      await showSuccessAnimation(context, widget.configToEdit != null ? 'Data Diperbarui!' : 'Berhasil Disimpan!');
+      if (mounted) Navigator.pop(context);
     }
   }
 

@@ -96,12 +96,12 @@ class AuthWrapper extends StatelessWidget {
             builder: (context, profile, child) {
 
               // 1. Tunggu provider mengambil data profil dari Supabase
-              if (profile.isLoading) {
+              if (profile.isLoading && !profile.profileKnown) {
                 return const _LoadingScaffold();
               }
 
               // 2. CEGAT! Jika nama kosong, paksa arahkan ke halaman form profil
-              if (profile.nickname.isEmpty) {
+              if (profile.profileKnown && profile.nickname.isEmpty) {
                 return const MandatoryProfileScreen();
               }
 

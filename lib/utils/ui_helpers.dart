@@ -5,7 +5,8 @@ import '../theme/app_spacing.dart';
 import '../theme/app_tokens.dart';
 
 /// Dialog konfirmasi singkat (ikon + pesan) yang menutup sendiri.
-void showActionAnimation(
+/// Future selesai setelah dialog tertutup; pemanggil tidak perlu pop dialog.
+Future<void> showActionAnimation(
     BuildContext context, String message, IconData icon, Color color) {
   HapticFeedback.mediumImpact();
   final navigator = Navigator.of(context, rootNavigator: true);
@@ -56,7 +57,7 @@ void showActionAnimation(
     },
     transitionDuration: Motion.normal,
   );
-  Future.delayed(const Duration(milliseconds: 1200), () {
+  return Future.delayed(const Duration(milliseconds: 1200), () {
     if (navigator.mounted) navigator.pop();
   });
 }

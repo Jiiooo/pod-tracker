@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart'; // <-- Import package cropper
@@ -14,6 +15,33 @@ class ProfileProvider extends ChangeNotifier {
 
   bool _isLoading = true;
   bool _isUploading = false;
+
+  /// True when the server answered (profile known), false when offline with
+  /// no cached profile. Only a known-empty profile should force the
+  /// mandatory profile screen.
+  bool _profileKnown = false;
+  bool get profileKnown => _profileKnown;
+
+  // Last profile from the server, cached per user in the `settings` box so
+  // the app opens normally offline.
+  Box get _settings => Hive.box('settings');
+  String _cacheKey(String uid) => 'profile_$uid';
+
+  void _writeCache() {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) return;
+    _settings.put(_cacheKey(uid),
+        {'nickname': _nickname, 'bio': _bio, 'avatar_url': _avatarUrl});
+  }
+
+  bool _readCache(String uid) {
+    final c = _settings.get(_cacheKey(uid));
+    if (c is! Map) return false;
+    _nickname = (c['nickname'] as String?) ?? '';
+    _bio = (c['bio'] as String?) ?? '';
+    _avatarUrl = c['avatar_url'] as String?;
+    return true;
+  }
 
   String get nickname => _nickname;
   String get bio => _bio;
@@ -30,15 +58,17 @@ class ProfileProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final userId = _supabase.auth.currentUser!.id;
+      // Show the cached profile immediately, then refresh from the server.
+      _profileKnown = _readCache(userId);
       final data = await _supabase.from('profiles').select().eq('id', userId).maybeSingle();
 
-      if (data != null) {
-        _nickname = data['nickname'] ?? '';
-        _bio = data['bio'] ?? '';
-        _avatarUrl = data['avatar_url'];
-      }
+      _nickname = data?['nickname'] ?? '';
+      _bio = data?['bio'] ?? '';
+      _avatarUrl = data?['avatar_url'];
+      _profileKnown = true;
+      _writeCache();
     } catch (e) {
-      debugPrint('Gagal memuat profil: $e');
+      debugPrint('Gagal memuat profil (pakai cache bila ada): $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -99,6 +129,7 @@ class ProfileProvider extends ChangeNotifier {
       });
 
       _avatarUrl = filePath;
+      _writeCache();
 
       // Hapus foto lama setelah yang baru tersimpan; gagal hanya dicatat.
       if (oldPath != null && oldPath != filePath) {
@@ -129,6 +160,8 @@ class ProfileProvider extends ChangeNotifier {
       });
       _nickname = newNickname;
       _bio = newBio;
+      _profileKnown = true;
+      _writeCache();
       return null;
     } catch (e) {
       return e.toString();
@@ -146,6 +179,7 @@ class ProfileProvider extends ChangeNotifier {
     _nickname = '';
     _bio = '';
     _avatarUrl = null;
+    _profileKnown = false;
     notifyListeners(); // Beritahu layar untuk mereset tampilannya
   }
 }
