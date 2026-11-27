@@ -133,7 +133,7 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
     showGeneralDialog(
       context: context,
       barrierDismissible: false,
-      pageBuilder: (_, __, ___) => const SizedBox(),
+      pageBuilder: (_, _, _) => const SizedBox(),
       transitionBuilder: (ctx, anim1, anim2, child) {
         return ScaleTransition(
           scale: CurvedAnimation(parent: anim1, curve: Curves.elasticOut),

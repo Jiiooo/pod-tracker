@@ -144,16 +144,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       }
                       final error = await authProvider.loginWithEmail(_emailController.text.trim(), _passwordController.text.trim());
 
-                      if (error == null && mounted) {
+                      if (error == null && context.mounted) {
                         // 👇 REFRESH PROFIL & ARAHKAN KE SATPAM (AuthWrapper) 👇
                         await Provider.of<ProfileProvider>(context, listen: false).loadProfile();
-                        if (mounted) {
+                        if (context.mounted) {
                           Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute(builder: (_) => const AuthWrapper()),
                                 (Route<dynamic> route) => false,
                           );
                         }
-                      } else if (error != null && mounted) {
+                      } else if (error != null && context.mounted) {
                         String errorMessage = error;
                         if (error.toLowerCase().contains('invalid login credentials')) {
                           errorMessage = 'Email atau password yang kamu masukkan salah. Silakan periksa kembali.';
@@ -193,16 +193,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         if (error == 'SILENT_CANCEL') return;
 
-                        if (error == null && mounted) {
+                        if (error == null && context.mounted) {
                           // 👇 REFRESH PROFIL & ARAHKAN KE SATPAM (AuthWrapper) 👇
                           await Provider.of<ProfileProvider>(context, listen: false).loadProfile();
-                          if (mounted) {
+                          if (context.mounted) {
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(builder: (_) => const AuthWrapper()),
                                   (Route<dynamic> route) => false,
                             );
                           }
-                        } else if (error != null && mounted) {
+                        } else if (error != null && context.mounted) {
                           _showPopup('Gagal Masuk', error, Icons.error_outline_rounded, Colors.redAccent);
                         }
                       },

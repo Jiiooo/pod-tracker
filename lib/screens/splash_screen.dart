@@ -40,13 +40,14 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     // 2. WAKTU TUNGGU DIPERLAMBAT (Menjadi 2500ms / 2.5 detik) agar teks sempat terbaca
     Future.delayed(const Duration(milliseconds: 2500), () {
+      if (!mounted) return;
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 800), // Durasi memudar ke Home
-          pageBuilder: (_, __, ___) => const AuthWrapper(),
-          transitionsBuilder: (_, animation, __, child) {
+          pageBuilder: (_, _, _) => const AuthWrapper(),
+          transitionsBuilder: (_, animation, _, child) {
             return FadeTransition(opacity: animation, child: child);
           },
         ),

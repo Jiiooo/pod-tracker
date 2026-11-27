@@ -29,5 +29,8 @@ void showActionAnimation(BuildContext context, String message, IconData icon, Co
     },
     transitionDuration: const Duration(milliseconds: 500),
   );
-  Future.delayed(const Duration(milliseconds: 1200), () => Navigator.of(context, rootNavigator: true).pop());
+  final navigator = Navigator.of(context, rootNavigator: true);
+  Future.delayed(const Duration(milliseconds: 1200), () {
+    if (navigator.mounted) navigator.pop();
+  });
 }

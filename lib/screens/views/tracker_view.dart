@@ -44,7 +44,7 @@ class _TrackerViewState extends State<TrackerView> {
       // 3. Membagikan gambar ke WhatsApp/IG
       await Share.shareXFiles([XFile(file.path)], text: '🔥 Cek racikan andalanku untuk ${config.liquidName}!');
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Gagal membuat poster: $e')));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Gagal membuat poster: $e')));
     }
   }
 
