@@ -1,5 +1,37 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_spacing.dart';
+import '../../theme/app_tokens.dart';
+import '../../utils/ui_helpers.dart';
+import '../../widgets/app_widgets.dart';
+
+/// Kartu bagian form dengan label bagian.
+class FormSection extends StatelessWidget {
+  final String label;
+  final List<Widget> children;
+  const FormSection({super.key, required this.label, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: Sp.xs),
+          child: SectionLabel(label),
+        ),
+        AppCard(
+          padding: const EdgeInsets.all(Sp.l),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Dropdown device + kolom nama device kustom ketika memilih "Lainnya".
 class DeviceSelector extends StatelessWidget {
   final String selectedDevice;
@@ -22,39 +54,42 @@ class DeviceSelector extends StatelessWidget {
       children: [
         DropdownButtonFormField<String>(
           initialValue: selectedDevice,
-          decoration: InputDecoration(
-            labelText: 'Pilih Device / Pod',
-            prefixIcon: const Icon(Icons.vape_free),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          borderRadius: Rd.fieldR,
+          decoration: const InputDecoration(
+            labelText: 'Device / pod',
+            prefixIcon: Icon(Icons.devices_other_rounded),
           ),
-          items: options.map((String device) {
-            return DropdownMenuItem<String>(value: device, child: Text(device));
-          }).toList(),
-          onChanged: (String? newValue) => onChanged(newValue!),
+          items: [
+            for (final d in options) DropdownMenuItem(value: d, child: Text(d)),
+          ],
+          onChanged: (v) => onChanged(v!),
         ),
-        if (selectedDevice == 'Lainnya') ...[
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: customController,
-            decoration: InputDecoration(
-              labelText: 'Ketik Nama Device Baru',
-              prefixIcon: const Icon(Icons.edit),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Nama device tidak boleh kosong';
-              }
-              return null;
-            },
-          ),
-        ],
+        AnimatedSize(
+          duration: Motion.of(context),
+          curve: Motion.curve,
+          alignment: Alignment.topCenter,
+          child: selectedDevice == 'Lainnya'
+              ? Padding(
+                  padding: const EdgeInsets.only(top: Sp.m),
+                  child: TextFormField(
+                    controller: customController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nama device baru',
+                      prefixIcon: Icon(Icons.edit_outlined),
+                    ),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Nama device tidak boleh kosong'
+                        : null,
+                  ),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
       ],
     );
   }
 }
 
-/// Kartu tanggal mulai pakai.
+/// Baris tanggal mulai pakai.
 class StartDateCard extends StatelessWidget {
   final DateTime date;
   final VoidCallback onTap;
@@ -63,15 +98,32 @@ class StartDateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: ListTile(
-        leading: const Icon(Icons.calendar_month),
-        title: const Text('Tanggal Mulai Pakai'),
-        subtitle: Text('${date.day}/${date.month}/${date.year}'),
-        trailing: const Icon(Icons.edit_calendar),
+    final t = context.tokens;
+    return Material(
+      color: t.surfaceRaised,
+      borderRadius: Rd.fieldR,
+      child: InkWell(
+        borderRadius: Rd.fieldR,
         onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: Sp.l, vertical: Sp.m),
+          child: Row(children: [
+            Icon(Icons.calendar_month_outlined, color: t.textSecondary),
+            const SizedBox(width: Sp.m),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Tanggal mulai pakai', style: context.text.bodySmall),
+                  Text('${date.day}/${date.month}/${date.year}',
+                      style: context.text.titleSmall
+                          ?.copyWith(fontFeatures: AppTokens.tabular)),
+                ],
+              ),
+            ),
+            Icon(Icons.edit_calendar_outlined, color: t.textSecondary),
+          ]),
+        ),
       ),
     );
   }
@@ -95,20 +147,28 @@ class FlavorTagSelector extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Karakter Rasa (Pilih 1 atau lebih):', style: TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
+        Text('Karakter rasa (pilih satu atau lebih)',
+            style: context.text.labelLarge),
+        const SizedBox(height: Sp.m),
         Wrap(
-          spacing: 8.0,
-          runSpacing: 0.0,
-          children: availableTags.map((tag) {
-            return FilterChip(
-              label: Text(tag),
-              selected: selectedTags.contains(tag),
-              selectedColor: Theme.of(context).colorScheme.primaryContainer,
-              checkmarkColor: Theme.of(context).colorScheme.primary,
-              onSelected: (bool selected) => onToggle(tag, selected),
-            );
-          }).toList(),
+          spacing: Sp.s,
+          runSpacing: Sp.s,
+          children: [
+            for (final tag in availableTags)
+              FilterChip(
+                label: Text(tag,
+                    style: TextStyle(
+                        color: selectedTags.contains(tag)
+                            ? context.scheme.primary
+                            : null)),
+                selected: selectedTags.contains(tag),
+                side: BorderSide(
+                    color: selectedTags.contains(tag)
+                        ? context.scheme.primary
+                        : context.tokens.outline),
+                onSelected: (s) => onToggle(tag, s),
+              ),
+          ],
         ),
       ],
     );
@@ -117,33 +177,8 @@ class FlavorTagSelector extends StatelessWidget {
 
 /// Dialog animasi sukses setelah menyimpan data.
 void showSuccessAnimation(BuildContext context, String message) {
-  showGeneralDialog(
-    context: context,
-    barrierDismissible: false,
-    pageBuilder: (_, _, _) => const SizedBox(),
-    transitionBuilder: (ctx, anim1, anim2, child) {
-      return ScaleTransition(
-        scale: CurvedAnimation(parent: anim1, curve: Curves.elasticOut),
-        child: AlertDialog(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          content: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(20)),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 72),
-                const SizedBox(height: 16),
-                Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-        ),
-      );
-    },
-    transitionDuration: const Duration(milliseconds: 500),
-  );
+  showActionAnimation(
+      context, message, Icons.check_rounded, context.tokens.success);
 }
 
 /// Baris input Resistance + Wattage.
@@ -151,27 +186,35 @@ class ResistanceWattageRow extends StatelessWidget {
   final TextEditingController resistanceController;
   final TextEditingController wattageController;
 
-  const ResistanceWattageRow({super.key, required this.resistanceController, required this.wattageController});
+  const ResistanceWattageRow(
+      {super.key,
+      required this.resistanceController,
+      required this.wattageController});
 
   @override
   Widget build(BuildContext context) {
+    final numStyle =
+        context.text.bodyMedium?.copyWith(fontFeatures: AppTokens.tabular);
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: TextFormField(
             controller: resistanceController,
-            decoration: const InputDecoration(labelText: 'Resistance (Ohm)', border: OutlineInputBorder()),
-            keyboardType: TextInputType.number,
-            validator: (value) => value!.isEmpty ? 'Wajib' : null,
+            style: numStyle,
+            decoration: const InputDecoration(labelText: 'Resistance (Ω)'),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            validator: (v) => v!.isEmpty ? 'Wajib' : null,
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: Sp.m),
         Expanded(
           child: TextFormField(
             controller: wattageController,
-            decoration: const InputDecoration(labelText: 'Wattage (W)', border: OutlineInputBorder()),
+            style: numStyle,
+            decoration: const InputDecoration(labelText: 'Wattage (W)'),
             keyboardType: TextInputType.number,
-            validator: (value) => value!.isEmpty ? 'Wajib' : null,
+            validator: (v) => v!.isEmpty ? 'Wajib' : null,
           ),
         ),
       ],
@@ -179,7 +222,7 @@ class ResistanceWattageRow extends StatelessWidget {
   }
 }
 
-/// Dropdown airflow, slider rating rasa.
+/// Dropdown airflow dan slider rating rasa.
 class AirflowAndRatingSection extends StatelessWidget {
   final String airflow;
   final double rating;
@@ -201,16 +244,31 @@ class AirflowAndRatingSection extends StatelessWidget {
       children: [
         DropdownButtonFormField<String>(
           initialValue: airflow,
-          decoration: const InputDecoration(labelText: 'Posisi Airflow', border: OutlineInputBorder()),
-          items: ['Tertutup Rapat', 'Setengah', 'Terbuka Penuh'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-          onChanged: (val) => onAirflowChanged(val!),
+          borderRadius: Rd.fieldR,
+          decoration: const InputDecoration(
+              labelText: 'Posisi airflow', prefixIcon: Icon(Icons.air_rounded)),
+          items: [
+            for (final e in ['Tertutup Rapat', 'Setengah', 'Terbuka Penuh'])
+              DropdownMenuItem(value: e, child: Text(e)),
+          ],
+          onChanged: (v) => onAirflowChanged(v!),
         ),
-        const SizedBox(height: 24),
-        Text('Rating Rasa: ${rating.toStringAsFixed(1)} / 5.0', style: const TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: Sp.xl),
+        Row(children: [
+          Expanded(child: Text('Rating rasa', style: context.text.labelLarge)),
+          RatingStars(rating, size: 18),
+          const SizedBox(width: Sp.s),
+          Text(rating.toStringAsFixed(1),
+              style: context.text.titleSmall
+                  ?.copyWith(fontFeatures: AppTokens.tabular)),
+        ]),
         Slider(
-          value: rating, min: 1.0, max: 5.0, divisions: 40,
+          value: rating,
+          min: 1.0,
+          max: 5.0,
+          divisions: 40,
           label: rating.toStringAsFixed(1),
-          onChanged: (val) => onRatingChanged(double.parse(val.toStringAsFixed(1))),
+          onChanged: (v) => onRatingChanged(double.parse(v.toStringAsFixed(1))),
         ),
       ],
     );

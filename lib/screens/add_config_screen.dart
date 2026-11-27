@@ -4,6 +4,9 @@ import 'package:image_picker/image_picker.dart';
 import '../models/pod_config.dart';
 import '../providers/pod_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../theme/app_spacing.dart';
+import '../theme/app_tokens.dart';
+import '../widgets/app_widgets.dart';
 import 'widgets/config_form_sections.dart';
 import 'widgets/image_picker_card.dart';
 
@@ -121,7 +124,6 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Sesi terputus! Silakan kembali dan Login ulang.'),
-            backgroundColor: Colors.red,
           ),
         );
         return;
@@ -171,7 +173,7 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
       padding: const EdgeInsets.only(top: 6, left: 4),
       child: Text(
         'Riwayat: ${history.count}x dicatat • rating terakhir ${history.lastRating}',
-        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary),
+        style: context.text.bodySmall?.copyWith(color: context.scheme.primary),
       ),
     );
   }
@@ -192,87 +194,97 @@ class _AddConfigScreenState extends State<AddConfigScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEdit ? 'Edit Settingan' : 'Catat Settingan Baru'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: Text(isEdit ? 'Edit setingan' : 'Catat setingan baru'),
       ),
       body: Form(
         key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // --- AREA FOTO BOTOL LIQUID (SUDAH MENDUKUNG CLOUD) ---
-            ImagePickerCard(imagePath: _currentImagePath, onTap: _showImageSourceDialog),
-            const SizedBox(height: 24),
-
-            DeviceSelector(
-              selectedDevice: _selectedDevice,
-              options: _deviceOptions,
-              customController: _customDeviceController,
-              onChanged: (value) => setState(() {
-                _selectedDevice = value;
-                if (_selectedDevice != 'Lainnya') {
-                  _customDeviceController.clear();
-                }
-              }),
-            ),
-
-            const SizedBox(height: 16),
-
-            StartDateCard(date: _selectedDate, onTap: _pickDate),
-            const SizedBox(height: 16),
-
-            TextFormField(
-              controller: _liquidController,
-              decoration: const InputDecoration(labelText: 'Nama Liquid', border: OutlineInputBorder()),
-              validator: (value) => value!.isEmpty ? 'Wajib diisi' : null,
-              onChanged: (_) => setState(() {}),
-            ),
-            _buildHistoryHint(),
-            const SizedBox(height: 16),
-
-            FlavorTagSelector(
-              availableTags: _availableTags,
-              selectedTags: _selectedTags,
-              onToggle: (tag, selected) => setState(() {
-                if (selected) {
-                  _selectedTags.add(tag);
-                } else {
-                  _selectedTags.remove(tag);
-                }
-              }),
-            ),
-            const SizedBox(height: 16),
-
-            ResistanceWattageRow(
-              resistanceController: _resistanceController,
-              wattageController: _wattageController,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _priceController,
-              decoration: const InputDecoration(labelText: 'Harga (Rp)', border: OutlineInputBorder(), prefixText: 'Rp '),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 16),
-            AirflowAndRatingSection(
-              airflow: _airflow,
-              rating: _rating,
-              onAirflowChanged: (val) => setState(() => _airflow = val),
-              onRatingChanged: (val) => setState(() => _rating = val),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _saveData,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+        child: MaxWidth(
+          width: 640,
+          child: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(Sp.l, Sp.s, Sp.l, Sp.xxl),
+            children: [
+              ImagePickerCard(
+                  imagePath: _currentImagePath, onTap: _showImageSourceDialog),
+              const SizedBox(height: Sp.xl),
+              FormSection(label: 'Perangkat', children: [
+                DeviceSelector(
+                  selectedDevice: _selectedDevice,
+                  options: _deviceOptions,
+                  customController: _customDeviceController,
+                  onChanged: (value) => setState(() {
+                    _selectedDevice = value;
+                    if (_selectedDevice != 'Lainnya') {
+                      _customDeviceController.clear();
+                    }
+                  }),
                 ),
-                child: Text(isEdit ? 'Update Settingan' : 'Simpan Settingan', style: const TextStyle(fontSize: 16)),
-              ),
+                const SizedBox(height: Sp.m),
+                StartDateCard(date: _selectedDate, onTap: _pickDate),
+              ]),
+              const SizedBox(height: Sp.xl),
+              FormSection(label: 'Liquid', children: [
+                TextFormField(
+                  controller: _liquidController,
+                  decoration: const InputDecoration(labelText: 'Nama liquid'),
+                  validator: (value) => value!.isEmpty ? 'Wajib diisi' : null,
+                  onChanged: (_) => setState(() {}),
+                ),
+                _buildHistoryHint(),
+                const SizedBox(height: Sp.l),
+                FlavorTagSelector(
+                  availableTags: _availableTags,
+                  selectedTags: _selectedTags,
+                  onToggle: (tag, selected) => setState(() {
+                    if (selected) {
+                      _selectedTags.add(tag);
+                    } else {
+                      _selectedTags.remove(tag);
+                    }
+                  }),
+                ),
+                const SizedBox(height: Sp.l),
+                TextFormField(
+                  controller: _priceController,
+                  style: context.text.bodyMedium
+                      ?.copyWith(fontFeatures: AppTokens.tabular),
+                  decoration: const InputDecoration(
+                      labelText: 'Harga (Rp)', prefixText: 'Rp '),
+                  keyboardType: TextInputType.number,
+                ),
+              ]),
+              const SizedBox(height: Sp.xl),
+              FormSection(label: 'Setelan', children: [
+                ResistanceWattageRow(
+                  resistanceController: _resistanceController,
+                  wattageController: _wattageController,
+                ),
+                const SizedBox(height: Sp.m),
+                AirflowAndRatingSection(
+                  airflow: _airflow,
+                  rating: _rating,
+                  onAirflowChanged: (val) => setState(() => _airflow = val),
+                  onRatingChanged: (val) => setState(() => _rating = val),
+                ),
+              ]),
+            ],
+          ),
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(Sp.l, Sp.m, Sp.l, Sp.m),
+          decoration: BoxDecoration(
+            color: context.scheme.surface,
+            border: Border(top: BorderSide(color: context.tokens.outline)),
+          ),
+          child: MaxWidth(
+            width: 640,
+            child: FilledButton(
+              onPressed: _saveData,
+              child: Text(isEdit ? 'Update setingan' : 'Simpan setingan'),
             ),
-          ],
+          ),
         ),
       ),
     );

@@ -1,4 +1,4 @@
-package com.example.pod_tracker
+package com.jiiooo.podtracker
 
 import io.flutter.embedding.android.FlutterActivity
 

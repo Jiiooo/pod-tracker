@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../utils/csv_codec.dart';
 import '../providers/pod_provider.dart';
 import '../providers/profile_provider.dart';
+import '../providers/theme_provider.dart';
+import '../theme/app_spacing.dart';
+import '../theme/app_tokens.dart';
+import '../utils/ui_helpers.dart';
+import '../widgets/app_widgets.dart';
 import 'login_screen.dart';
 import 'widgets/profile_avatar.dart';
 import 'widgets/profile_sections.dart';
@@ -45,38 +49,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
-  // 👇 FUNGSI PREMIUM POP-UP (MENGGANTIKAN SNACKBAR)
-  void _showPopup(String title, String message, IconData icon, Color iconColor) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1a1a1a),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.grey.shade800, width: 1),
-        ),
-        title: Row(
-          children: [
-            Icon(icon, color: iconColor, size: 28),
-            const SizedBox(width: 12),
-            Expanded(child: Text(title, style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white))),
-          ],
-        ),
-        content: Text(message, style: GoogleFonts.plusJakartaSans(fontSize: 14, height: 1.5, color: Colors.grey.shade400)),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00E5FF).withValues(alpha: 0.1),
-              foregroundColor: const Color(0xFF00E5FF),
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Mengerti', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
+  void _showPopup(String title, String message, IconData icon, Color color) {
+    showMessageDialog(context,
+        title: title, message: message, icon: icon, color: color);
   }
 
   Future<void> _handleSave(ProfileProvider provider) async {
@@ -86,9 +61,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mounted) {
       if (error == null) {
         setState(() => _isEditing = false);
-        _showPopup('Berhasil', 'Profil kamu berhasil disimpan ke awan.', Icons.check_circle_outline_rounded, Colors.greenAccent);
+        _showPopup('Berhasil', 'Profil kamu berhasil disimpan ke awan.', Icons.check_circle_outline_rounded, context.tokens.success);
       } else {
-        _showPopup('Gagal Menyimpan', error, Icons.error_outline_rounded, Colors.redAccent);
+        _showPopup('Gagal Menyimpan', error, Icons.error_outline_rounded, context.tokens.danger);
       }
     }
   }
@@ -96,9 +71,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _handleUpload(ProfileProvider provider) async {
     final error = await provider.uploadAvatar();
     if (mounted && error != null) {
-      _showPopup('Gagal Upload', error, Icons.error_outline_rounded, Colors.redAccent);
+      _showPopup('Gagal Upload', error, Icons.error_outline_rounded, context.tokens.danger);
     } else if (mounted && error == null && provider.avatarUrl != null) {
-      _showPopup('Berhasil', 'Foto profil berhasil diperbarui.', Icons.check_circle_outline_rounded, Colors.greenAccent);
+      _showPopup('Berhasil', 'Foto profil berhasil diperbarui.', Icons.check_circle_outline_rounded, context.tokens.success);
     }
   }
 
@@ -123,94 +98,95 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = Theme.of(context).colorScheme.surface;
+    final t = context.tokens;
+    final provider = context.watch<ProfileProvider>();
+    if (provider.isLoading && provider.avatarUrl == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-    return Consumer<ProfileProvider>(
-      builder: (context, provider, child) {
-        if (provider.isLoading && provider.avatarUrl == null) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)));
-        }
-
-        return Scaffold(
-          backgroundColor: surfaceColor,
-          body: ListView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 32.0, bottom: 100.0),
-            children: [
-              ProfileAvatar(
-                avatarUrl: provider.avatarUrl,
-                isEditing: _isEditing,
-                isUploading: provider.isUploading,
-                onUpload: () => _handleUpload(provider),
-              ),
-              const SizedBox(height: 32),
-
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 400),
-                switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(0.0, 0.05), end: Offset.zero).animate(animation), child: child)),
-                child: _isEditing
-                    ? ProfileEditMode(
-                        nicknameController: _nicknameController,
-                        bioController: _bioController,
-                        isLoading: provider.isLoading,
-                        onCancel: () => setState(() => _isEditing = false),
-                        onSave: () => _handleSave(provider),
-                      )
-                    : ProfileViewMode(
-                        nickname: provider.nickname,
-                        bio: provider.bio,
-                        onEdit: () {
-                          _nicknameController.text = provider.nickname;
-                          _bioController.text = provider.bio;
-                          setState(() => _isEditing = true);
-                        },
-                      ),
-              ),
-              const SizedBox(height: 32),
-
-              if (!_isEditing) ...[
-                Divider(color: Colors.grey.withValues(alpha: 0.2), thickness: 1),
-                const SizedBox(height: 24),
-                Padding(
-                  padding: const EdgeInsets.only(left: 8.0, bottom: 12),
-                  child: Text('Manajemen Data', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w800, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600)),
-                ),
-
-                SettingsTile(
-                  title: 'Backup & Export Data', subtitle: 'Simpan semua catatan ke dalam file CSV', icon: Icons.download_rounded, iconColor: Colors.blueAccent, isDark: isDark,
-                  onTap: () async {
-                    HapticFeedback.lightImpact();
-                    try {
-                      await context.read<PodProvider>().exportToCSV();
-                    } catch (e) {
-                      if (context.mounted) _showPopup('Gagal Export', e.toString(), Icons.error_outline_rounded, Colors.redAccent);
-                    }
-                  },
-                ),
-
-                const SizedBox(height: 12),
-                SettingsTile(
-                  title: 'Import dari CSV', subtitle: 'Tambahkan catatan dari file CSV hasil backup', icon: Icons.upload_file_rounded, iconColor: Colors.teal, isDark: isDark,
-                  onTap: () async {
-                    HapticFeedback.lightImpact();
-                    try {
-                      final result = await context.read<PodProvider>().importFromCSV();
-                      if (result != null && context.mounted) _showImportSummary(result);
-                    } catch (e) {
-                      if (context.mounted) _showPopup('Gagal Import', e.toString(), Icons.error_outline_rounded, Colors.redAccent);
-                    }
-                  },
-                ),
-
-                const SizedBox(height: 24),
-                LogoutButton(onConfirmed: () => _handleLogout(context)),
-              ]
-            ],
+    return MaxWidth(
+      width: 560,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(Sp.l, Sp.s, Sp.l, Sp.xxl),
+        children: [
+          Center(
+            child: ProfileAvatar(
+              avatarUrl: provider.avatarUrl,
+              isEditing: _isEditing,
+              isUploading: provider.isUploading,
+              onUpload: () => _handleUpload(provider),
+            ),
           ),
-        );
-      },
+          const SizedBox(height: Sp.l),
+          AnimatedSwitcher(
+            duration: Motion.of(context, Motion.normal),
+            switchInCurve: Motion.curve,
+            switchOutCurve: Motion.curve,
+            child: _isEditing
+                ? ProfileEditMode(
+                    nicknameController: _nicknameController,
+                    bioController: _bioController,
+                    isLoading: provider.isLoading,
+                    onCancel: () => setState(() => _isEditing = false),
+                    onSave: () => _handleSave(provider),
+                  )
+                : ProfileViewMode(
+                    nickname: provider.nickname,
+                    bio: provider.bio,
+                    onEdit: () {
+                      _nicknameController.text = provider.nickname;
+                      _bioController.text = provider.bio;
+                      setState(() => _isEditing = true);
+                    },
+                  ),
+          ),
+          if (!_isEditing) ...[
+            const SizedBox(height: Sp.xxxl),
+            const SettingsGroup(label: 'Tampilan', children: [_ThemeModeTile()]),
+            const SizedBox(height: Sp.xl),
+            SettingsGroup(label: 'Manajemen data', children: [
+              SettingsTile(
+                title: 'Backup & export data',
+                subtitle: 'Simpan semua catatan ke file CSV',
+                icon: Icons.download_rounded,
+                onTap: () async {
+                  HapticFeedback.lightImpact();
+                  try {
+                    await context.read<PodProvider>().exportToCSV();
+                  } catch (e) {
+                    if (context.mounted) {
+                      _showPopup('Gagal export', e.toString(),
+                          Icons.error_outline_rounded, t.danger);
+                    }
+                  }
+                },
+              ),
+              SettingsTile(
+                title: 'Import dari CSV',
+                subtitle: 'Tambahkan catatan dari file CSV hasil backup',
+                icon: Icons.upload_file_rounded,
+                onTap: () async {
+                  HapticFeedback.lightImpact();
+                  try {
+                    final result =
+                        await context.read<PodProvider>().importFromCSV();
+                    if (result != null && context.mounted) {
+                      _showImportSummary(result);
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      _showPopup('Gagal import', e.toString(),
+                          Icons.error_outline_rounded, t.danger);
+                    }
+                  }
+                },
+              ),
+            ]),
+            const SizedBox(height: Sp.xl),
+            Center(child: LogoutButton(onConfirmed: () => _handleLogout(context))),
+          ],
+        ],
+      ),
     );
   }
 
@@ -228,13 +204,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Text('Dilewati: ${r.skipped.length}'),
               if (r.skipped.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                for (final s in r.skipped.take(20)) Text('• Baris ${s.row}: ${s.reason}', style: const TextStyle(fontSize: 12)),
-                if (r.skipped.length > 20) Text('…dan ${r.skipped.length - 20} lainnya', style: const TextStyle(fontSize: 12)),
+                for (final s in r.skipped.take(20)) Text('• Baris ${s.row}: ${s.reason}', style: context.text.bodySmall),
+                if (r.skipped.length > 20) Text('…dan ${r.skipped.length - 20} lainnya', style: context.text.bodySmall),
               ],
             ],
           ),
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+      ),
+    );
+  }
+}
+
+
+class _ThemeModeTile extends StatelessWidget {
+  const _ThemeModeTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final mode = context.select<ThemeProvider, ThemeMode>((t) => t.themeMode);
+    return Padding(
+      padding: const EdgeInsets.all(Sp.l),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Tema', style: context.text.titleSmall),
+          const SizedBox(height: Sp.m),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<ThemeMode>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                    value: ThemeMode.system,
+                    icon: Icon(Icons.brightness_auto_rounded),
+                    label: Text('Sistem')),
+                ButtonSegment(
+                    value: ThemeMode.light,
+                    icon: Icon(Icons.light_mode_rounded),
+                    label: Text('Terang')),
+                ButtonSegment(
+                    value: ThemeMode.dark,
+                    icon: Icon(Icons.dark_mode_rounded),
+                    label: Text('Gelap')),
+              ],
+              selected: {mode},
+              onSelectionChanged: (s) {
+                HapticFeedback.selectionClick();
+                context.read<ThemeProvider>().setThemeMode(s.first);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

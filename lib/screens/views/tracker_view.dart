@@ -1,290 +1,401 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:shimmer/shimmer.dart';
-import 'package:lottie/lottie.dart';
-// --- PACKAGE BARU UNTUK FITUR SHARE ---
 import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:shimmer/shimmer.dart';
 
+import '../../models/pod_config.dart';
 import '../../providers/pod_provider.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_spacing.dart';
+import '../../theme/app_tokens.dart';
+import '../../utils/photo_storage.dart';
+import '../../utils/ui_helpers.dart';
+import '../../widgets/app_widgets.dart';
+import '../../widgets/share_poster.dart';
 import '../add_config_screen.dart';
 import '../widgets/tag_filter_bar.dart';
-import '../../utils/ui_helpers.dart';
-import '../../utils/photo_storage.dart';
 
-class TrackerView extends StatefulWidget {
+class TrackerView extends StatelessWidget {
   const TrackerView({super.key});
+
   @override
-  State<TrackerView> createState() => _TrackerViewState();
+  Widget build(BuildContext context) {
+    final configs =
+        context.select<PodProvider, List<PodConfig>>((p) => p.activeConfigs);
+    final isLoading = context.select<PodProvider, bool>((p) => p.isLoading);
+    final hasPending = context.select<PodProvider, bool>(
+        (p) => p.syncError != null || p.pendingCount > 0);
+
+    final now = DateTime.now();
+    final oldCount =
+        configs.where((c) => now.difference(c.dateStarted).inDays >= 14).length;
+
+    Widget body;
+    if (isLoading && configs.isEmpty) {
+      body = const _ShimmerList();
+    } else if (configs.isEmpty) {
+      body = EmptyState(
+        icon: Icons.water_drop_outlined,
+        title: 'Belum ada pod',
+        message: 'Catat setup pertamamu untuk mulai melacak rasa dan biaya.',
+        actionLabel: 'Tambah pod',
+        onAction: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const AddConfigScreen())),
+      );
+    } else {
+      body = _PodList(configs: configs);
+    }
+
+    return Column(
+      children: [
+        const _SearchSortRow(),
+        const TagFilterBar(),
+        if (hasPending) const _SyncBanner(),
+        if (oldCount > 0) _AgeBanner(count: oldCount),
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: Motion.of(context),
+            switchInCurve: Motion.curve,
+            child: KeyedSubtree(
+                key: ValueKey(body.runtimeType), child: body),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-class _TrackerViewState extends State<TrackerView> {
-  final ScreenshotController _screenshotController = ScreenshotController();
+class _SyncBanner extends StatelessWidget {
+  const _SyncBanner();
 
-  // --- LOGIKA GENERATOR POSTER (VAPE CARD) ---
-  Future<void> _shareSetup(BuildContext context, dynamic config, bool isDark) async {
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final provider = context.read<PodProvider>();
+    final msg = context.select<PodProvider, String>((p) =>
+        p.syncError ?? '${p.pendingCount} perubahan belum tersinkron');
+    final loading = context.select<PodProvider, bool>((p) => p.isLoading);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(Sp.l, Sp.xs, Sp.l, Sp.s),
+      padding: const EdgeInsets.only(left: Sp.m, right: Sp.xs),
+      decoration: BoxDecoration(
+        color: t.warning.withValues(alpha: 0.12),
+        borderRadius: Rd.fieldR,
+      ),
+      child: Row(children: [
+        Icon(Icons.cloud_off_rounded, color: t.warning, size: 18),
+        const SizedBox(width: Sp.s),
+        Expanded(
+            child: Text(msg,
+                style: context.text.labelLarge
+                    ?.copyWith(fontSize: 12, color: t.warning))),
+        TextButton(
+          style: TextButton.styleFrom(
+              minimumSize: const Size(48, 48), foregroundColor: t.warning),
+          onPressed: loading ? null : provider.syncData,
+          child: const Text('Coba lagi'),
+        ),
+      ]),
+    );
+  }
+}
+
+class _AgeBanner extends StatelessWidget {
+  final int count;
+  const _AgeBanner({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(Sp.l, Sp.xs, Sp.l, Sp.s),
+      padding: const EdgeInsets.all(Sp.m),
+      decoration: BoxDecoration(
+        color: t.danger.withValues(alpha: 0.12),
+        borderRadius: Rd.fieldR,
+      ),
+      child: Row(children: [
+        Icon(Icons.warning_rounded, color: t.danger, size: 20),
+        const SizedBox(width: Sp.m),
+        Expanded(
+          child: Text(
+              '$count cartridge/coil sudah dipakai lebih dari 14 hari. Waktunya cek kondisinya.',
+              style: context.text.labelLarge
+                  ?.copyWith(fontSize: 12, color: t.danger)),
+        ),
+      ]),
+    );
+  }
+}
+
+class _SearchSortRow extends StatelessWidget {
+  const _SearchSortRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.read<PodProvider>();
+    final sort = context.select<PodProvider, String>((p) => p.sortBy);
+    final t = context.tokens;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.l, Sp.s, Sp.l, Sp.s),
+      child: Row(children: [
+        Expanded(
+          child: TextField(
+            onChanged: provider.setSearchQuery,
+            textInputAction: TextInputAction.search,
+            decoration: const InputDecoration(
+              hintText: 'Cari liquid atau device',
+              prefixIcon: Icon(Icons.search_rounded),
+              contentPadding: EdgeInsets.symmetric(vertical: Sp.m),
+            ),
+          ),
+        ),
+        const SizedBox(width: Sp.s),
+        PopupMenuButton<String>(
+          tooltip: 'Urutkan',
+          initialValue: sort,
+          onSelected: provider.setSortBy,
+          shape: RoundedRectangleBorder(borderRadius: Rd.fieldR),
+          position: PopupMenuPosition.under,
+          itemBuilder: (_) => const [
+            PopupMenuItem(value: 'date', child: Text('Terbaru')),
+            PopupMenuItem(value: 'rating', child: Text('Rating tertinggi')),
+            PopupMenuItem(value: 'price', child: Text('Harga termurah')),
+          ],
+          child: Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+                color: t.surfaceRaised, borderRadius: Rd.fieldR),
+            child: Icon(Icons.swap_vert_rounded,
+                color: sort == 'date' ? t.textSecondary : context.scheme.primary),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _ShimmerList extends StatelessWidget {
+  const _ShimmerList();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return ListView.builder(
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 3,
+      padding: const EdgeInsets.fromLTRB(Sp.l, Sp.s, Sp.l, Sp.l),
+      itemBuilder: (_, _) => Padding(
+        padding: const EdgeInsets.only(bottom: Sp.m),
+        child: Shimmer.fromColors(
+          baseColor: t.surfaceRaised,
+          highlightColor: t.outline,
+          child: Container(
+            height: 260,
+            decoration: BoxDecoration(
+                color: t.surfaceRaised, borderRadius: Rd.cardR),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PodList extends StatelessWidget {
+  final List<PodConfig> configs;
+  const _PodList({required this.configs});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      itemCount: configs.length,
+      padding: const EdgeInsets.fromLTRB(Sp.l, Sp.s, Sp.l, 96),
+      itemBuilder: (ctx, i) => Padding(
+        padding: const EdgeInsets.only(bottom: Sp.m),
+        child: PodCard(key: ValueKey(configs[i].id), config: configs[i]),
+      ),
+    );
+  }
+}
+
+class PodCard extends StatelessWidget {
+  final PodConfig config;
+  const PodCard({super.key, required this.config});
+
+  Future<void> _share(BuildContext context) async {
     HapticFeedback.heavyImpact();
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⏳ Sedang meracik poster setup-mu...')));
-
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+        const SnackBar(content: Text('Menyiapkan poster setup...')));
     try {
-      // 1. Memotret layout poster tersembunyi
-      final bytes = await _screenshotController.captureFromWidget(
-        _buildSharePoster(config),
+      final bytes = await ScreenshotController().captureFromWidget(
+        SharePoster(config: config),
         delay: const Duration(milliseconds: 100),
         context: context,
       );
-
-      // 2. Menyimpan hasil potret ke folder sementara HP
       final temp = await getTemporaryDirectory();
       final file = File('${temp.path}/my_vape_setup.png');
       await file.writeAsBytes(bytes);
-
-      // 3. Membagikan gambar ke WhatsApp/IG
-      await SharePlus.instance.share(ShareParams(files: [XFile(file.path)], text: '🔥 Cek racikan andalanku untuk ${config.liquidName}!'));
+      await SharePlus.instance.share(ShareParams(
+          files: [XFile(file.path)],
+          text: 'Cek racikan andalanku untuk ${config.liquidName}!'));
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Gagal membuat poster: $e')));
+      messenger.showSnackBar(SnackBar(content: Text('Gagal membuat poster: $e')));
     }
-  }
-
-  // DESAIN POSTER DIGITAL (Tidak terlihat di layar biasa)
-  Widget _buildSharePoster(dynamic config) {
-    return Container(
-      width: 400, padding: const EdgeInsets.all(32),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [Color(0xFF1E1E1E), Color(0xFF121212)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.bolt_rounded, color: Colors.amber, size: 32),
-              const SizedBox(width: 8),
-              Text('MY VAPE SETUP', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 2, fontFamily: 'Plus Jakarta Sans')),
-            ],
-          ),
-          const SizedBox(height: 32),
-          Container(
-            height: 200, width: 200,
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: Colors.white10, borderRadius: BorderRadius.circular(32),
-            ),
-            child: config.imagePath == null ? const Icon(Icons.vape_free, color: Colors.grey, size: 64) : StoragePhoto(value: config.imagePath!, fit: BoxFit.cover),
-          ),
-          const SizedBox(height: 32),
-          Text(config.liquidName, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, fontFamily: 'Plus Jakarta Sans')),
-          const SizedBox(height: 8),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: BoxDecoration(color: Colors.amber.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(16)), child: Text('Rating: ${config.flavorRating} / 5.0 ⭐', style: const TextStyle(color: Colors.amber, fontSize: 18, fontWeight: FontWeight.w800, fontFamily: 'Plus Jakarta Sans'))),
-          const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white12)),
-            child: Column(
-              children: [
-                _buildPosterRow('Device', config.deviceName),
-                const Divider(color: Colors.white12, height: 24),
-                _buildPosterRow('Resistance', '${config.resistance} Ω'),
-                const Divider(color: Colors.white12, height: 24),
-                _buildPosterRow('Sweet Spot', '${config.optimalWattage} W'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 32),
-          Text('Generated by Tracker Pod App', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12, fontFamily: 'Plus Jakarta Sans')),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPosterRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 16, fontFamily: 'Plus Jakarta Sans')),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Plus Jakarta Sans')),
-      ],
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Consumer<PodProvider>(
-      builder: (context, provider, child) {
-        final configs = provider.activeConfigs;
-
-        // --- LOGIKA LIFESPAN TRACKER (Pendeteksi Umur Cartridge > 14 Hari) ---
-        final warningConfigs = configs.where((c) => DateTime.now().difference(c.dateStarted).inDays >= 14).toList();
-
-        return Column(
-          children: [
-            _buildPremiumSearchAndFilter(context, provider, isDark),
-            const TagFilterBar(),
-
-            if (provider.syncError != null || provider.pendingCount > 0)
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.withValues(alpha: 0.5))),
-                child: Row(
-                  children: [
-                    const Icon(Icons.cloud_off_rounded, color: Colors.orange, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(
-                      provider.syncError ?? '${provider.pendingCount} perubahan belum tersinkron',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange))),
-                    TextButton(onPressed: provider.isLoading ? null : () => provider.syncData(), child: const Text('Coba lagi')),
-                  ],
-                ),
-              ),
-
-            // BANNER PERINGATAN (Hanya muncul jika ada alat yang ketuaan)
-            if (warningConfigs.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: Colors.redAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5))),
-                child: Row(
-                  children: [
-                    const Icon(Icons.warning_rounded, color: Colors.redAccent),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text('Perhatian! Ada ${warningConfigs.length} cartridge/coil yang sudah dipakai lebih dari 14 hari. Waktunya cek kondisi agar rasa tetap maksimal!', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent))),
-                  ],
-                ),
-              ),
-
-            Expanded(
-              child: provider.isLoading
-                  ? _buildShimmerLoading(isDark)
-                  : configs.isEmpty
-                  ? _buildEmptyState(context, isDark)
-                  : ListView.builder(
-                physics: const BouncingScrollPhysics(),
-                itemCount: configs.length, padding: const EdgeInsets.only(top: 8, bottom: 100),
-                itemBuilder: (ctx, i) => _buildPremiumLiquidCard(context, configs[i], provider, isDark),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // ... (Sisa fungsi _buildShimmerLoading, _buildEmptyState, _buildPremiumSearchAndFilter biarkan sama seperti sebelumnya) ...
-  Widget _buildShimmerLoading(bool isDark) {
-    return ListView.builder(
-      itemCount: 4, padding: const EdgeInsets.only(top: 8, bottom: 100),
-      itemBuilder: (context, index) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-          child: Shimmer.fromColors(baseColor: isDark ? Colors.grey.shade800 : Colors.grey.shade300, highlightColor: isDark ? Colors.grey.shade700 : Colors.grey.shade100, child: Container(height: 110, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)))),
-        );
-      },
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context, bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Lottie.network('https://lottie.host/17eb60c5-1153-41c3-88c9-83c34e7bb451/DkIXX1zQ8m.json', width: 200, height: 200, errorBuilder: (context, error, stackTrace) { return Container(padding: const EdgeInsets.all(32), decoration: BoxDecoration(shape: BoxShape.circle, color: isDark ? Colors.grey.shade900 : Colors.blueGrey.shade50), child: Icon(Icons.water_drop_outlined, size: 80, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5))); }),
-          Text('Belum Ada Liquid', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
-          const SizedBox(height: 8),
-          Text('Koleksimu masih kosong. Ketuk tombol +\nuntuk mulai mencatat perjalanan vaping-mu.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500, height: 1.5)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPremiumSearchAndFilter(BuildContext context, PodProvider provider, bool isDark) {
-    final bgColor = isDark ? Colors.grey.shade900 : Colors.grey.shade100;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Row(
-        children: [
-          Expanded(flex: 5, child: Container(height: 50, decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.transparent : Colors.grey.shade300)), child: TextField(style: const TextStyle(fontSize: 15), decoration: InputDecoration(hintText: 'Cari Liquid...', hintStyle: TextStyle(color: Colors.grey.shade500), prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade500), border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 14)), onChanged: provider.setSearchQuery))),
-          const SizedBox(width: 12),
-          Expanded(flex: 3, child: Container(height: 50, padding: const EdgeInsets.symmetric(horizontal: 12), decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.transparent : Colors.grey.shade300)), child: DropdownButtonHideUnderline(child: DropdownButton<String>(isExpanded: true, value: 'Terbaru', icon: Icon(Icons.filter_list_rounded, color: Theme.of(context).colorScheme.primary, size: 20), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface), items: ['Terbaru', 'Rating Tertinggi', 'Harga Termurah'].map((e) => DropdownMenuItem(value: e, child: Text(e, overflow: TextOverflow.ellipsis))).toList(), onChanged: (val) => provider.setSortBy(val!))))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPremiumLiquidCard(BuildContext context, dynamic config, PodProvider provider, bool isDark) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    final cardBg = isDark ? Colors.grey.shade900 : Colors.white;
-    final textColor = Theme.of(context).colorScheme.onSurface;
-    final daysActive = DateTime.now().difference(config.dateStarted).inDays;
-
-    Color ageColor = Colors.green;
-    if (daysActive >= 14) {
-      ageColor = Colors.redAccent;
-    } else if (daysActive > 10) {
-      ageColor = Colors.orange;
-    }
+    final t = context.tokens;
+    final scheme = context.scheme;
+    final days = DateTime.now().difference(config.dateStarted).inDays;
+    final ageColor = days >= 14
+        ? t.danger
+        : (days > 10 ? t.warning : t.success);
+    final tags = config.flavorTags.take(3).toList();
 
     return Dismissible(
-      key: Key(config.id), direction: DismissDirection.endToStart,
-      background: Container(margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16), decoration: BoxDecoration(color: Colors.amber.shade400, borderRadius: BorderRadius.circular(20)), alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 24), child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.archive_rounded, color: Colors.white, size: 28), SizedBox(height: 4), Text('Arsip', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))])),
-      onDismissed: (_) { provider.archiveConfig(config.id); showActionAnimation(context, 'Disimpan ke Arsip', Icons.inventory_2_rounded, Colors.amber); },
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-        decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(20), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200), boxShadow: [isDark ? BoxShadow(color: primaryColor.withValues(alpha: 0.08), blurRadius: 15, spreadRadius: 1) : BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))]),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: () { HapticFeedback.lightImpact(); Navigator.push(context, MaterialPageRoute(builder: (_) => AddConfigScreen(configToEdit: config))); },
-          child: Padding(
-            padding: const EdgeInsets.all(14.0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GestureDetector(
-                  onTap: () { if (config.imagePath != null) { HapticFeedback.lightImpact(); Navigator.push(context, MaterialPageRoute(builder: (_) => FullScreenImageView(heroTag: config.id, imagePath: config.imagePath!))); } },
-                  child: Hero(tag: config.id, child: Container(width: 85, height: 85, clipBehavior: Clip.antiAlias, decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.withValues(alpha: 0.1))), child: config.imagePath == null ? Icon(Icons.vape_free_rounded, color: Colors.grey.shade400, size: 32) : StoragePhoto(value: config.imagePath!, fit: BoxFit.cover))),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween, crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: Text(config.liquidName, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: textColor, letterSpacing: -0.3), overflow: TextOverflow.ellipsis, maxLines: 1)),
-
-                          // --- TOMBOL SHARE SETUP BARU DITAMBAHKAN DI SINI ---
-                          GestureDetector(
-                            onTap: () => _shareSetup(context, config, isDark),
-                            child: Container(
-                              padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: primaryColor.withValues(alpha: 0.1), shape: BoxShape.circle),
-                              child: Icon(Icons.share_rounded, size: 16, color: primaryColor),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text('${config.deviceName} • ${config.resistance}Ω • ${config.optimalWattage}W', style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 4),
-                      Row(children: [Icon(Icons.access_time_rounded, size: 14, color: ageColor), const SizedBox(width: 4), Text('Dipakai $daysActive hari', style: TextStyle(color: ageColor, fontSize: 12, fontWeight: FontWeight.w700))]),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(child: Wrap(spacing: 6, runSpacing: 6, children: config.flavorTags.isEmpty ? [const SizedBox()] : config.flavorTags.take(2).map<Widget>((tag) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: primaryColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: Text(tag, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: primaryColor)))).toList())),
-                          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.amber.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)), child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.star_rounded, color: Colors.amber, size: 14), const SizedBox(width: 4), Text(config.flavorRating.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.amber))])),
-                        ],
-                      ),
-                    ],
+      key: ValueKey('dismiss_${config.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        decoration:
+            BoxDecoration(color: t.warning, borderRadius: Rd.cardR),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: Sp.xxl),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(Icons.archive_rounded, color: scheme.surface, size: 28),
+          const SizedBox(height: Sp.xs),
+          Text('Arsip',
+              style: context.text.labelLarge?.copyWith(color: scheme.surface)),
+        ]),
+      ),
+      onDismissed: (_) {
+        context.read<PodProvider>().archiveConfig(config.id);
+        showActionAnimation(
+            context, 'Disimpan ke Arsip', Icons.inventory_2_rounded, t.warning);
+      },
+      child: PressScale(
+        child: AppCard(
+          padding: EdgeInsets.zero,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => AddConfigScreen(configToEdit: config)));
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AspectRatio(
+                aspectRatio: 16 / 10,
+                child: GestureDetector(
+                  onTap: config.imagePath == null
+                      ? null
+                      : () {
+                          HapticFeedback.lightImpact();
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => FullScreenImageView(
+                                      heroTag: config.id,
+                                      imagePath: config.imagePath!)));
+                        },
+                  child: Hero(
+                    tag: config.id,
+                    child: ColoredBox(
+                      color: t.surfaceRaised,
+                      child: config.imagePath == null
+                          ? Center(
+                              child: Icon(Icons.water_drop_outlined,
+                                  size: 40, color: t.textSecondary))
+                          : StoragePhoto(
+                              value: config.imagePath!, fit: BoxFit.cover),
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(Sp.l, Sp.m, Sp.xs, Sp.l),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(config.liquidName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: context.text.titleMedium),
+                            const SizedBox(height: 2),
+                            Text(config.deviceName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: context.text.bodySmall
+                                    ?.copyWith(fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Bagikan setup',
+                        icon: const Icon(Icons.ios_share_rounded, size: 20),
+                        color: t.textSecondary,
+                        onPressed: () => _share(context),
+                      ),
+                    ]),
+                    const SizedBox(height: Sp.s),
+                    Padding(
+                      padding: const EdgeInsets.only(right: Sp.l),
+                      child: Wrap(spacing: Sp.s, runSpacing: Sp.s, children: [
+                        StatPill('${config.resistance} Ω'),
+                        StatPill('${config.optimalWattage} W'),
+                        if (config.airflowLevel.isNotEmpty)
+                          StatPill(config.airflowLevel,
+                              icon: Icons.air_rounded),
+                        StatPill('$days hari',
+                            icon: Icons.schedule_rounded, color: ageColor),
+                      ]),
+                    ),
+                    if (tags.isNotEmpty) ...[
+                      const SizedBox(height: Sp.s),
+                      Wrap(spacing: Sp.s, runSpacing: Sp.s, children: [
+                        for (final tag in tags)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: Sp.s, vertical: Sp.xs),
+                            decoration: BoxDecoration(
+                                color: t.accentSoft,
+                                borderRadius: Rd.chipR),
+                            child: Text(tag,
+                                style: context.text.labelMedium?.copyWith(
+                                    fontSize: 12, color: scheme.primary)),
+                          ),
+                      ]),
+                    ],
+                    const SizedBox(height: Sp.m),
+                    Padding(
+                      padding: const EdgeInsets.only(right: Sp.l),
+                      child: Row(children: [
+                        RatingStars(config.flavorRating),
+                        const Spacer(),
+                        if (config.price > 0)
+                          Text(formatRupiah(config.price),
+                              style: context.text.titleSmall?.copyWith(
+                                  fontFeatures: AppTokens.tabular)),
+                      ]),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -295,9 +406,29 @@ class _TrackerViewState extends State<TrackerView> {
 class FullScreenImageView extends StatelessWidget {
   final String heroTag;
   final String imagePath;
-  const FullScreenImageView({super.key, required this.heroTag, required this.imagePath});
+  const FullScreenImageView(
+      {super.key, required this.heroTag, required this.imagePath});
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(backgroundColor: Colors.black.withValues(alpha: 0.9), appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, iconTheme: const IconThemeData(color: Colors.white)), body: Center(child: Hero(tag: heroTag, child: InteractiveViewer(child: ClipRRect(borderRadius: BorderRadius.circular(16), child: StoragePhoto(value: imagePath, fit: BoxFit.contain))))));
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.dark.textPrimary,
+        iconTheme: IconThemeData(color: AppColors.dark.textPrimary),
+      ),
+      body: Center(
+        child: Hero(
+          tag: heroTag,
+          child: InteractiveViewer(
+            child: ClipRRect(
+              borderRadius: Rd.fieldR,
+              child: StoragePhoto(value: imagePath, fit: BoxFit.contain),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
