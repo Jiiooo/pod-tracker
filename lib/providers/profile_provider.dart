@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart'; // <-- Import package cropper
+import '../utils/photo_storage.dart';
 
 class ProfileProvider extends ChangeNotifier {
   final _supabase = Supabase.instance.client;
@@ -48,7 +49,8 @@ class ProfileProvider extends ChangeNotifier {
   Future<String?> uploadAvatar() async {
     final picker = ImagePicker();
     // 1. Pilih foto dari galeri
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 100);
+    final pickedFile = await picker.pickImage(
+        source: ImageSource.gallery, imageQuality: 85, maxWidth: 1024, maxHeight: 1024);
 
     if (pickedFile == null) return null; // Batal pilih foto
 
@@ -86,19 +88,26 @@ class ProfileProvider extends ChangeNotifier {
       final userId = _supabase.auth.currentUser!.id;
       final filePath = '$userId/$fileName';
 
-      // Hapus foto lama jika ada (opsional, untuk menghemat storage Supabase)
-      // await _supabase.storage.from('pod_images').remove([filePath]);
+      final oldPath = storagePathFromValue(_avatarUrl);
 
       // Upload foto baru
       await _supabase.storage.from('pod_images').upload(filePath, file);
-      final imageUrl = _supabase.storage.from('pod_images').getPublicUrl(filePath);
 
       await _supabase.from('profiles').upsert({
         'id': userId,
-        'avatar_url': imageUrl,
+        'avatar_url': filePath,
       });
 
-      _avatarUrl = imageUrl;
+      _avatarUrl = filePath;
+
+      // Hapus foto lama setelah yang baru tersimpan; gagal hanya dicatat.
+      if (oldPath != null && oldPath != filePath) {
+        try {
+          await _supabase.storage.from('pod_images').remove([oldPath]);
+        } catch (e) {
+          debugPrint('Gagal hapus avatar lama ($oldPath): $e');
+        }
+      }
       return null;
     } catch (e) {
       return e.toString();

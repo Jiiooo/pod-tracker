@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:pod_tracker/utils/photo_storage.dart';
 
 import '../providers/pod_provider.dart';
 import '../providers/profile_provider.dart';
@@ -197,8 +198,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 tag: 'profile_avatar_hero',
                 child: CircleAvatar(
                   radius: 65, backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  backgroundImage: provider.avatarUrl != null ? NetworkImage(provider.avatarUrl!) : null,
-                  child: provider.avatarUrl == null ? Icon(Icons.person, size: 65, color: Colors.grey.shade400) : null,
+                  child: provider.avatarUrl == null ? Icon(Icons.person, size: 65, color: Colors.grey.shade400) : ClipOval(child: StoragePhoto(value: provider.avatarUrl!, fit: BoxFit.cover, width: 130, height: 130)),
                 ),
               ),
             ),
@@ -360,7 +360,7 @@ class FullScreenAvatarView extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.black.withOpacity(0.95),
       appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, iconTheme: const IconThemeData(color: Colors.white)),
-      body: Center(child: Hero(tag: 'profile_avatar_hero', child: InteractiveViewer(child: Image.network(imageUrl, fit: BoxFit.contain)))),
+      body: Center(child: Hero(tag: 'profile_avatar_hero', child: InteractiveViewer(child: StoragePhoto(value: imageUrl, fit: BoxFit.contain)))),
     );
   }
 }
