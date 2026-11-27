@@ -31,10 +31,6 @@ class TrackerView extends StatelessWidget {
     final hasPending = context.select<PodProvider, bool>(
         (p) => p.syncError != null || p.pendingCount > 0);
 
-    final now = DateTime.now();
-    final oldCount =
-        configs.where((c) => now.difference(c.dateStarted).inDays >= 14).length;
-
     Widget body;
     if (isLoading && configs.isEmpty) {
       body = const _ShimmerList();
@@ -56,7 +52,6 @@ class TrackerView extends StatelessWidget {
         const _SearchSortRow(),
         const TagFilterBar(),
         if (hasPending) const _SyncBanner(),
-        if (oldCount > 0) _AgeBanner(count: oldCount),
         Expanded(
           child: AnimatedSwitcher(
             duration: Motion.of(context),
@@ -99,34 +94,6 @@ class _SyncBanner extends StatelessWidget {
               minimumSize: const Size(48, 48), foregroundColor: t.warning),
           onPressed: loading ? null : provider.syncData,
           child: const Text('Coba lagi'),
-        ),
-      ]),
-    );
-  }
-}
-
-class _AgeBanner extends StatelessWidget {
-  final int count;
-  const _AgeBanner({required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(Sp.l, Sp.xs, Sp.l, Sp.s),
-      padding: const EdgeInsets.all(Sp.m),
-      decoration: BoxDecoration(
-        color: t.danger.withValues(alpha: 0.12),
-        borderRadius: Rd.fieldR,
-      ),
-      child: Row(children: [
-        Icon(Icons.warning_rounded, color: t.danger, size: 20),
-        const SizedBox(width: Sp.m),
-        Expanded(
-          child: Text(
-              '$count cartridge/coil sudah dipakai lebih dari 14 hari. Waktunya cek kondisinya.',
-              style: context.text.labelLarge
-                  ?.copyWith(fontSize: 12, color: t.danger)),
         ),
       ]),
     );
@@ -254,10 +221,6 @@ class PodCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final scheme = context.scheme;
-    final days = DateTime.now().difference(config.dateStarted).inDays;
-    final ageColor = days >= 14
-        ? t.danger
-        : (days > 10 ? t.warning : t.success);
     final tags = config.flavorTags.take(3).toList();
 
     return Dismissible(
@@ -360,8 +323,6 @@ class PodCard extends StatelessWidget {
                         if (config.airflowLevel.isNotEmpty)
                           StatPill(config.airflowLevel,
                               icon: Icons.air_rounded),
-                        StatPill('$days hari',
-                            icon: Icons.schedule_rounded, color: ageColor),
                       ]),
                     ),
                     if (tags.isNotEmpty) ...[
