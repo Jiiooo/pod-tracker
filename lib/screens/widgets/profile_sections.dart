@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+
+import '../../theme/app_spacing.dart';
+import '../../theme/app_tokens.dart';
+import '../../widgets/app_widgets.dart';
 
 /// Tampilan profil (mode lihat): nama, bio, tombol edit.
 class ProfileViewMode extends StatelessWidget {
@@ -8,39 +11,35 @@ class ProfileViewMode extends StatelessWidget {
   final String bio;
   final VoidCallback onEdit;
 
-  const ProfileViewMode({super.key, required this.nickname, required this.bio, required this.onEdit});
+  const ProfileViewMode(
+      {super.key,
+      required this.nickname,
+      required this.bio,
+      required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    final textColor = Theme.of(context).colorScheme.onSurface;
-    final bioText = bio.isNotEmpty ? bio : 'Belum ada deskripsi profil.';
-
+    final t = context.tokens;
     return Column(
       key: const ValueKey('ViewMode'),
       children: [
-        Text(
-          nickname.isNotEmpty ? nickname : 'Pengguna Baru',
-          style: GoogleFonts.montserrat(fontSize: 26, fontWeight: FontWeight.w900, color: textColor, letterSpacing: -0.5), textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100, borderRadius: BorderRadius.circular(16)),
-          child: Text(bioText, style: GoogleFonts.plusJakartaSans(fontSize: 15, color: textColor.withValues(alpha: 0.7), height: 1.5), textAlign: TextAlign.center),
-        ),
-        const SizedBox(height: 32),
-        SizedBox(
-          height: 50, width: 200,
-          child: OutlinedButton.icon(
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              onEdit();
-            },
-            icon: const Icon(Icons.edit_rounded, size: 18), label: Text('Edit Profil', style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.bold)),
-            style: OutlinedButton.styleFrom(foregroundColor: primaryColor, side: BorderSide(color: primaryColor.withValues(alpha: 0.5), width: 1.5), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-          ),
+        Text(nickname.isNotEmpty ? nickname : 'Pengguna Baru',
+            style: context.text.titleLarge, textAlign: TextAlign.center),
+        const SizedBox(height: Sp.s),
+        Text(bio.isNotEmpty ? bio : 'Belum ada deskripsi profil.',
+            textAlign: TextAlign.center,
+            style: context.text.bodyMedium?.copyWith(color: t.textSecondary)),
+        const SizedBox(height: Sp.l),
+        OutlinedButton.icon(
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            onEdit();
+          },
+          style: OutlinedButton.styleFrom(
+              minimumSize: const Size(160, 48),
+              foregroundColor: context.scheme.primary),
+          icon: const Icon(Icons.edit_rounded, size: 18),
+          label: const Text('Edit profil'),
         ),
       ],
     );
@@ -66,44 +65,78 @@ class ProfileEditMode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = Theme.of(context).colorScheme.primary;
-
     return Column(
       key: const ValueKey('EditMode'),
       children: [
-        PremiumTextField(controller: nicknameController, label: 'Nama Panggilan', icon: Icons.badge_rounded, isDark: isDark),
-        const SizedBox(height: 20),
-        PremiumTextField(controller: bioController, label: 'Deskripsi Diri / Bio', icon: Icons.description_rounded, isDark: isDark, maxLines: 3),
-        const SizedBox(height: 32),
-        Row(
-          children: [
-            Expanded(
-              child: SizedBox(
-                height: 56,
-                child: TextButton(
-                  onPressed: () { HapticFeedback.lightImpact(); onCancel(); },
-                  style: TextButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                  child: Text('Batal', style: GoogleFonts.plusJakartaSans(fontSize: 16, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontWeight: FontWeight.bold)),
-                ),
-              ),
+        TextFormField(
+          controller: nicknameController,
+          decoration: const InputDecoration(
+              labelText: 'Nama panggilan', prefixIcon: Icon(Icons.badge_rounded)),
+        ),
+        const SizedBox(height: Sp.l),
+        TextFormField(
+          controller: bioController,
+          maxLines: 3,
+          decoration: const InputDecoration(
+              labelText: 'Deskripsi diri / bio',
+              prefixIcon: Icon(Icons.description_rounded)),
+        ),
+        const SizedBox(height: Sp.xl),
+        Row(children: [
+          Expanded(
+            child: TextButton(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                onCancel();
+              },
+              style: TextButton.styleFrom(
+                  foregroundColor: context.tokens.textSecondary),
+              child: const Text('Batal'),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              flex: 2,
-              child: Container(
-                height: 56,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), gradient: LinearGradient(colors: [primaryColor, primaryColor.withValues(alpha: 0.7)], begin: Alignment.centerLeft, end: Alignment.centerRight), boxShadow: [BoxShadow(color: primaryColor.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 6))]),
-                child: ElevatedButton(
-                  onPressed: onSave,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                  child: isLoading
-                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                      : Text('Simpan', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-                ),
-              ),
+          ),
+          const SizedBox(width: Sp.m),
+          Expanded(
+            flex: 2,
+            child: FilledButton(
+              onPressed: isLoading ? null : onSave,
+              child: isLoading
+                  ? SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                          color: context.scheme.onPrimary, strokeWidth: 2.5))
+                  : const Text('Simpan'),
             ),
-          ],
+          ),
+        ]),
+      ],
+    );
+  }
+}
+
+/// Kelompok pengaturan dalam satu kartu dengan pemisah hairline.
+class SettingsGroup extends StatelessWidget {
+  final String label;
+  final List<Widget> children;
+  const SettingsGroup({super.key, required this.label, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: Sp.xs),
+          child: SectionLabel(label),
+        ),
+        AppCard(
+          padding: EdgeInsets.zero,
+          child: Column(children: [
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0) const Divider(indent: Sp.l, endIndent: Sp.l),
+              children[i],
+            ],
+          ]),
         ),
       ],
     );
@@ -114,8 +147,6 @@ class SettingsTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final IconData icon;
-  final Color iconColor;
-  final bool isDark;
   final VoidCallback onTap;
 
   const SettingsTile({
@@ -123,54 +154,24 @@ class SettingsTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.icon,
-    required this.iconColor,
-    required this.isDark,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(color: isDark ? Colors.grey.shade900 : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
-      child: ListTile(
-        onTap: onTap, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.15), shape: BoxShape.circle), child: Icon(icon, color: iconColor)),
-        title: Text(title, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 15)),
-        subtitle: Text(subtitle, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600)),
-        trailing: Icon(Icons.arrow_forward_ios_rounded, size: 16, color: isDark ? Colors.grey.shade600 : Colors.grey.shade400),
+    final t = context.tokens;
+    return ListTile(
+      onTap: onTap,
+      minTileHeight: 64,
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(color: t.accentSoft, shape: BoxShape.circle),
+        child: Icon(icon, size: 20, color: context.scheme.primary),
       ),
-    );
-  }
-}
-
-class PremiumTextField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final IconData icon;
-  final bool isDark;
-  final int maxLines;
-
-  const PremiumTextField({
-    super.key,
-    required this.controller,
-    required this.label,
-    required this.icon,
-    required this.isDark,
-    this.maxLines = 1,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fillColor = isDark ? Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3) : Colors.grey.shade100;
-    return TextFormField(
-      controller: controller, maxLines: maxLines, style: GoogleFonts.plusJakartaSans(fontSize: 15, color: Theme.of(context).colorScheme.onSurface),
-      decoration: InputDecoration(
-        labelText: label, labelStyle: GoogleFonts.plusJakartaSans(color: Colors.grey.shade500, fontWeight: FontWeight.w500),
-        prefixIcon: Column(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.start, children: [Padding(padding: const EdgeInsets.only(top: 18), child: Icon(icon, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)))]),
-        filled: true, fillColor: fillColor, contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5)),
-      ),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: Icon(Icons.chevron_right_rounded, color: t.textSecondary),
     );
   }
 }
@@ -182,28 +183,35 @@ class LogoutButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 56, width: double.infinity,
-      child: TextButton.icon(
-        onPressed: () {
-          HapticFeedback.lightImpact();
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              backgroundColor: const Color(0xFF1a1a1a),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.grey.shade800, width: 1)),
-              title: Row(children: [const Icon(Icons.warning_amber_rounded, color: Colors.redAccent), const SizedBox(width: 8), Text('Konfirmasi', style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.bold))]),
-              content: Text('Apakah kamu yakin ingin keluar dari akun ini?', style: GoogleFonts.plusJakartaSans(color: Colors.grey.shade400)),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Batal', style: GoogleFonts.plusJakartaSans(color: Colors.white))),
-                ElevatedButton(onPressed: () { Navigator.pop(ctx); onConfirmed(); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent.withValues(alpha: 0.2), foregroundColor: Colors.redAccent, elevation: 0), child: Text('Keluar', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold))),
-              ],
-            ),
-          );
-        },
-        icon: const Icon(Icons.logout_rounded, color: Colors.redAccent), label: Text('Keluar Akun', style: GoogleFonts.plusJakartaSans(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold)),
-        style: TextButton.styleFrom(backgroundColor: Colors.redAccent.withValues(alpha: 0.1), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-      ),
+    final t = context.tokens;
+    return TextButton.icon(
+      onPressed: () {
+        HapticFeedback.lightImpact();
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Keluar akun?'),
+            content: const Text('Apakah kamu yakin ingin keluar dari akun ini?'),
+            actions: [
+              TextButton(
+                  style: TextButton.styleFrom(foregroundColor: t.textSecondary),
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Batal')),
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: t.danger),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  onConfirmed();
+                },
+                child: const Text('Keluar'),
+              ),
+            ],
+          ),
+        );
+      },
+      style: TextButton.styleFrom(foregroundColor: t.danger),
+      icon: const Icon(Icons.logout_rounded),
+      label: const Text('Keluar akun'),
     );
   }
 }
