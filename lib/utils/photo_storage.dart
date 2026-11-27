@@ -59,7 +59,11 @@ class SignedUrlResolver {
         DateTime.now().isBefore(cached.expiresAt.subtract(_refreshMargin))) {
       return Future.value(cached.url);
     }
-    return _inflight[path] ??= _fetch(path).whenComplete(() => _inflight.remove(path));
+    return _inflight[path] ??= _fetch(path).whenComplete(() {
+      // Block body on purpose: returning the removed Future here would make
+      // whenComplete wait on itself and never complete.
+      _inflight.remove(path);
+    });
   }
 
   Future<String> _fetch(String path) async {
