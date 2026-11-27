@@ -20,6 +20,13 @@ class PodProvider with ChangeNotifier {
 
   String _searchQuery = '';
   String _sortBy = 'date';
+  Set<String> _selectedTags = {};
+
+  // Cache daftar hasil filter/sort; dihitung ulang hanya saat _dirty.
+  bool _dirty = true;
+  List<PodConfig> _activeCache = const [];
+  List<PodConfig> _archivedCache = const [];
+  List<String> _tagsCache = const [];
 
   String? get _currentUserId => _supabase.auth.currentUser?.id;
 
@@ -42,6 +49,8 @@ class PodProvider with ChangeNotifier {
   /// Logout: hanya kosongkan memori, data lokal (Hive) tetap aman.
   void clearData() {
     _configs = [];
+    _selectedTags = {};
+    _dirty = true;
     notifyListeners();
   }
 
@@ -104,6 +113,7 @@ class PodProvider with ChangeNotifier {
     _configs = uid != null
         ? _box.values.where((c) => c.userId == uid && !c.isDeleted).toList()
         : [];
+    _dirty = true;
     notifyListeners();
   }
 
@@ -255,27 +265,83 @@ class PodProvider with ChangeNotifier {
   }
 
   // --- 3. FILTER, SORTING & STATISTIK UI ---
-  void setSearchQuery(String query) { _searchQuery = query; notifyListeners(); }
-  void setSortBy(String sort) { _sortBy = sort; notifyListeners(); }
+  void setSearchQuery(String query) { _searchQuery = query; _dirty = true; notifyListeners(); }
+  void setSortBy(String sort) { _sortBy = sort; _dirty = true; notifyListeners(); }
 
-  List<PodConfig> get activeConfigs {
-    var filtered = _configs.where((c) => c.isStillActive && !c.isDeleted).toList();
-    if (_searchQuery.isNotEmpty) {
-      filtered = filtered.where((c) =>
-      c.deviceName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          c.liquidName.toLowerCase().contains(_searchQuery.toLowerCase())
-      ).toList();
-    }
-    if (_sortBy == 'date') {
-      filtered.sort((a, b) => b.dateStarted.compareTo(a.dateStarted));
-    } else if (_sortBy == 'rating') {
-      filtered.sort((a, b) => b.flavorRating.compareTo(a.flavorRating));
-    }
+  Set<String> get selectedTags => Set.unmodifiable(_selectedTags);
 
-    return filtered;
+  void toggleTag(String tag) {
+    final existing = _selectedTags.where((t) => t.toLowerCase() == tag.toLowerCase()).toList();
+    if (existing.isEmpty) {
+      _selectedTags = {..._selectedTags, tag};
+    } else {
+      _selectedTags = _selectedTags.difference(existing.toSet());
+    }
+    _dirty = true;
+    notifyListeners();
   }
 
-  List<PodConfig> get archivedConfigs => _configs.where((c) => !c.isStillActive && !c.isDeleted).toList();
+  void clearTagFilter() {
+    if (_selectedTags.isEmpty) return;
+    _selectedTags = {};
+    _dirty = true;
+    notifyListeners();
+  }
+
+  /// Semua tag dari config yang tidak dihapus, unik (tanpa beda huruf), terurut.
+  List<String> get availableTags {
+    _refresh();
+    return _tagsCache;
+  }
+
+  List<PodConfig> get activeConfigs {
+    _refresh();
+    return _activeCache;
+  }
+
+  List<PodConfig> get archivedConfigs {
+    _refresh();
+    return _archivedCache;
+  }
+
+  void _refresh() {
+    if (!_dirty) return;
+    _dirty = false;
+
+    final live = _configs.where((c) => !c.isDeleted).toList();
+
+    final seen = <String, String>{};
+    for (final c in live) {
+      for (final t in c.flavorTags) {
+        final trimmed = t.trim();
+        if (trimmed.isNotEmpty) seen.putIfAbsent(trimmed.toLowerCase(), () => trimmed);
+      }
+    }
+    _tagsCache = seen.values.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    // Buang tag terpilih yang sudah tidak ada lagi.
+    _selectedTags = _selectedTags.where((t) => seen.containsKey(t.toLowerCase())).toSet();
+    final wanted = _selectedTags.map((t) => t.toLowerCase()).toSet();
+    bool tagOk(PodConfig c) =>
+        wanted.isEmpty || c.flavorTags.any((t) => wanted.contains(t.trim().toLowerCase()));
+
+    final q = _searchQuery.toLowerCase();
+    final active = live.where((c) {
+      if (!c.isStillActive || !tagOk(c)) return false;
+      return q.isEmpty ||
+          c.deviceName.toLowerCase().contains(q) ||
+          c.liquidName.toLowerCase().contains(q);
+    }).toList();
+    if (_sortBy == 'date') {
+      active.sort((a, b) => b.dateStarted.compareTo(a.dateStarted));
+    } else if (_sortBy == 'rating') {
+      active.sort((a, b) => b.flavorRating.compareTo(a.flavorRating));
+    }
+    _activeCache = active;
+    _archivedCache = live.where((c) => !c.isStillActive && tagOk(c)).toList();
+  }
+
   double get totalExpense => _configs.where((c) => !c.isDeleted).fold(0.0, (sum, item) => sum + item.price);
 
   // --- 4. ARSIP & EXPORT CSV ---

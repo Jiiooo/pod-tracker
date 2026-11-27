@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../providers/pod_provider.dart';
 import '../add_config_screen.dart';
+import '../widgets/tag_filter_bar.dart';
 import '../../utils/ui_helpers.dart';
 import '../../utils/photo_storage.dart';
 
@@ -123,6 +124,7 @@ class _TrackerViewState extends State<TrackerView> {
         return Column(
           children: [
             _buildPremiumSearchAndFilter(context, provider, isDark),
+            const TagFilterBar(),
 
             if (provider.syncError != null || provider.pendingCount > 0)
               Container(

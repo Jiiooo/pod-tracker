@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:lottie/lottie.dart';
 import '../../providers/pod_provider.dart';
 import '../../utils/ui_helpers.dart'; // Import animasi pop-up
+import '../widgets/tag_filter_bar.dart';
 
 class ArchiveView extends StatelessWidget {
   const ArchiveView({super.key});
@@ -15,8 +16,9 @@ class ArchiveView extends StatelessWidget {
       builder: (context, provider, child) {
         final archived = provider.archivedConfigs;
 
+        Widget body;
         if (archived.isEmpty) {
-          return Center(
+          body = Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -31,9 +33,8 @@ class ArchiveView extends StatelessWidget {
                 ],
               )
           );
-        }
-
-        return ListView.builder(
+        } else {
+          body = ListView.builder(
           itemCount: archived.length,
           padding: const EdgeInsets.only(left: 12, right: 12, top: 12, bottom: 100),
           itemBuilder: (ctx, i) {
@@ -57,6 +58,9 @@ class ArchiveView extends StatelessWidget {
             );
           },
         );
+        }
+
+        return Column(children: [const TagFilterBar(), Expanded(child: body)]);
       },
     );
   }
