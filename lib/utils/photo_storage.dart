@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/app_tokens.dart';
@@ -120,7 +121,15 @@ class _StoragePhotoState extends State<StoragePhoto> {
 
   void _prepare() {
     final path = isLocalFile(widget.value) ? null : storagePathFromValue(widget.value);
-    _future = path == null ? null : SignedUrlResolver.instance.resolve(path);
+    _future = path == null ? null : _source(path);
+  }
+
+  /// Disk cache first (keyed by storage path, works offline), else a fresh
+  /// signed URL. A cache hit is returned as `file:<path>`.
+  static Future<String> _source(String path) async {
+    final cached = await DefaultCacheManager().getFileFromCache(path);
+    if (cached != null) return 'file:${cached.file.path}';
+    return SignedUrlResolver.instance.resolve(path);
   }
 
   Widget get _error =>
@@ -161,6 +170,15 @@ class _StoragePhotoState extends State<StoragePhoto> {
         builder: (context, snap) {
           if (snap.hasError) return _error;
           if (!snap.hasData) return _loading;
+          final src = snap.data!;
+          if (src.startsWith('file:')) {
+            return Image.file(File(src.substring(5)),
+                fit: widget.fit,
+                width: widget.width,
+                height: widget.height,
+                cacheWidth: cacheW,
+                errorBuilder: (_, _, _) => _error);
+          }
           return CachedNetworkImage(
             imageUrl: snap.data!,
             cacheKey: key,

@@ -221,7 +221,10 @@ class MaxWidth extends StatelessWidget {
   const MaxWidth({super.key, this.width = 420, required this.child});
 
   @override
+  // heightFactor: 1 so it never grows taller than its child (e.g. inside
+  // Scaffold.bottomNavigationBar it would otherwise fill the whole screen).
   Widget build(BuildContext context) => Center(
+      heightFactor: 1,
       child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: width), child: child));
 }

@@ -235,6 +235,7 @@ class _TrendChart extends StatelessWidget {
           LineChartBarData(
             spots: spots,
             isCurved: true,
+            preventCurveOverShooting: true,
             curveSmoothness: 0.3,
             color: accent,
             barWidth: 3,

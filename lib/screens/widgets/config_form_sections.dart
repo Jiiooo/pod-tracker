@@ -176,8 +176,8 @@ class FlavorTagSelector extends StatelessWidget {
 }
 
 /// Dialog animasi sukses setelah menyimpan data.
-void showSuccessAnimation(BuildContext context, String message) {
-  showActionAnimation(
+Future<void> showSuccessAnimation(BuildContext context, String message) {
+  return showActionAnimation(
       context, message, Icons.check_rounded, context.tokens.success);
 }
 
