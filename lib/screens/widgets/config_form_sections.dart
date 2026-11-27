@@ -38,9 +38,13 @@ class DeviceSelector extends StatelessWidget {
   final List<String> options;
   final TextEditingController customController;
   final ValueChanged<String> onChanged;
+  final Key? customFieldKey;
+  final FocusNode? customFocusNode;
 
   const DeviceSelector({
     super.key,
+    this.customFieldKey,
+    this.customFocusNode,
     required this.selectedDevice,
     required this.options,
     required this.customController,
@@ -72,6 +76,8 @@ class DeviceSelector extends StatelessWidget {
               ? Padding(
                   padding: const EdgeInsets.only(top: Sp.m),
                   child: TextFormField(
+                    key: customFieldKey,
+                    focusNode: customFocusNode,
                     controller: customController,
                     decoration: const InputDecoration(
                       labelText: 'Nama device baru',
@@ -185,11 +191,19 @@ Future<void> showSuccessAnimation(BuildContext context, String message) {
 class ResistanceWattageRow extends StatelessWidget {
   final TextEditingController resistanceController;
   final TextEditingController wattageController;
+  final Key? resistanceKey;
+  final Key? wattageKey;
+  final FocusNode? resistanceFocus;
+  final FocusNode? wattageFocus;
 
   const ResistanceWattageRow(
       {super.key,
       required this.resistanceController,
-      required this.wattageController});
+      required this.wattageController,
+      this.resistanceKey,
+      this.wattageKey,
+      this.resistanceFocus,
+      this.wattageFocus});
 
   @override
   Widget build(BuildContext context) {
@@ -200,6 +214,8 @@ class ResistanceWattageRow extends StatelessWidget {
       children: [
         Expanded(
           child: TextFormField(
+            key: resistanceKey,
+            focusNode: resistanceFocus,
             controller: resistanceController,
             style: numStyle,
             decoration: const InputDecoration(labelText: 'Resistance (Ω)'),
@@ -210,6 +226,8 @@ class ResistanceWattageRow extends StatelessWidget {
         const SizedBox(width: Sp.m),
         Expanded(
           child: TextFormField(
+            key: wattageKey,
+            focusNode: wattageFocus,
             controller: wattageController,
             style: numStyle,
             decoration: const InputDecoration(labelText: 'Wattage (W)'),
