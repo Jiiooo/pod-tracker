@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../utils/csv_codec.dart';
 import '../providers/pod_provider.dart';
 import '../providers/profile_provider.dart';
 import 'login_screen.dart';
@@ -189,6 +190,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   },
                 ),
 
+                const SizedBox(height: 12),
+                SettingsTile(
+                  title: 'Import dari CSV', subtitle: 'Tambahkan catatan dari file CSV hasil backup', icon: Icons.upload_file_rounded, iconColor: Colors.teal, isDark: isDark,
+                  onTap: () async {
+                    HapticFeedback.lightImpact();
+                    try {
+                      final result = await context.read<PodProvider>().importFromCSV();
+                      if (result != null && context.mounted) _showImportSummary(result);
+                    } catch (e) {
+                      if (context.mounted) _showPopup('Gagal Import', e.toString(), Icons.error_outline_rounded, Colors.redAccent);
+                    }
+                  },
+                ),
+
                 const SizedBox(height: 24),
                 LogoutButton(onConfirmed: () => _handleLogout(context)),
               ]
@@ -199,4 +214,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _showImportSummary(CsvImportResult r) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hasil Import'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Berhasil diimpor: ${r.configs.length}'),
+              Text('Dilewati: ${r.skipped.length}'),
+              if (r.skipped.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                for (final s in r.skipped.take(20)) Text('• Baris ${s.row}: ${s.reason}', style: const TextStyle(fontSize: 12)),
+                if (r.skipped.length > 20) Text('…dan ${r.skipped.length - 20} lainnya', style: const TextStyle(fontSize: 12)),
+              ],
+            ],
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+      ),
+    );
+  }
 }

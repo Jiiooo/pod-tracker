@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/pod_config.dart';
+import '../utils/csv_codec.dart';
 import '../utils/photo_storage.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -250,6 +253,15 @@ class PodProvider with ChangeNotifier {
     await _push();
   }
 
+  /// Tambah banyak record sekaligus dengan satu kali push.
+  Future<void> addConfigs(List<PodConfig> configs) async {
+    for (final c in configs) {
+      await _box.put(c.id, _copyPending(c));
+    }
+    _loadLocalData();
+    await _push();
+  }
+
   Future<void> updateConfig(PodConfig newConfig) async {
     await _box.put(newConfig.id, _copyPending(newConfig));
     _loadLocalData();
@@ -363,10 +375,7 @@ class PodProvider with ChangeNotifier {
 
   Future<void> exportToCSV() async {
     try {
-      String csvData = "Device,Liquid,Resistance(Ohm),Watt,Rating,Harga,Tanggal\n";
-      for (var c in _configs.where((c) => !c.isDeleted)) {
-        csvData += "${c.deviceName},${c.liquidName},${c.resistance},${c.optimalWattage},${c.flavorRating},${c.price},${c.dateStarted.toIso8601String().split('T')[0]}\n";
-      }
+      final csvData = podsToCsv(_configs.where((c) => !c.isDeleted));
       final directory = await getTemporaryDirectory();
       final path = '${directory.path}/Backup_Tracker_Pod.csv';
       await File(path).writeAsString(csvData);
@@ -376,5 +385,30 @@ class PodProvider with ChangeNotifier {
       debugPrint('CSV Error: $e');
       rethrow;
     }
+  }
+
+  /// Pilih file CSV lalu buat record BARU dari isinya. Null jika dibatalkan.
+  Future<CsvImportResult?> importFromCSV() async {
+    final uid = _currentUserId;
+    if (uid == null) throw StateError('Sesi terputus. Silakan login ulang.');
+
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+      withData: true,
+    );
+    if (picked == null || picked.files.isEmpty) return null;
+    final f = picked.files.single;
+    final bytes = f.bytes ?? (f.path != null ? await File(f.path!).readAsBytes() : null);
+    if (bytes == null) throw StateError('File tidak bisa dibaca.');
+
+    final stamp = DateTime.now().toString();
+    final result = parsePodCsv(
+      utf8.decode(bytes, allowMalformed: true),
+      userId: uid,
+      newId: (i) => '$stamp#$i',
+    );
+    if (result.configs.isNotEmpty) await addConfigs(result.configs);
+    return result;
   }
 }
